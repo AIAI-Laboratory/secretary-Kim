@@ -1,0 +1,17 @@
+[project]
+name = "discord-research-assistance"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "dependency-injector>=4.49.0",
+    "discord-py>=2.7.1",
+    "google-genai>=2.8.0",
+    "httpx>=0.28.1",
+    "pydantic-settings>=2.14.1",
+    "python-dotenv>=1.2.2",
+    "yt-dlp>=2026.6.9",
+    "PyNaCl>=1.6.2",
+    "davey>=0.1.5",
+]
