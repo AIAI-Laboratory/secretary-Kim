@@ -3,6 +3,8 @@ from discord.ext import commands
 from discord import app_commands
 import asyncio
 from app.services.music import MusicService
+from app.services.agent.event_management import EventAgentService
+from app.services.agent.task_management import TaskManagementAgentService
 from app.core.logger import get_logger
 
 logger = get_logger(__name__)
@@ -304,13 +306,15 @@ class MusicCog(commands.Cog):
 
 class MusicBot(commands.Bot):
     """Client bot chính, xử lý kết nối và điều phối sự kiện."""
-    def __init__(self, music_service: MusicService, *args, **kwargs):
+    def __init__(self, music_service: MusicService, event_agent_service: EventAgentService, task_management_agent_service: TaskManagementAgentService, *args, **kwargs):
         intents = discord.Intents.default()
         intents.message_content = True
         intents.voice_states = True
         
         super().__init__(command_prefix="!", intents=intents, *args, **kwargs)
         self.music_service = music_service
+        self.event_agent_service = event_agent_service
+        self.task_management_agent_service = task_management_agent_service
         self.managers = {}
 
     def get_manager(self, guild_id: int) -> GuildMusicManager:
@@ -321,6 +325,9 @@ class MusicBot(commands.Bot):
     async def setup_hook(self):
         # Đăng ký Cog điều khiển nhạc
         await self.add_cog(MusicCog(self))
+        # Đăng ký Cog xử lý event AI
+        from app.presentation.event_cog import EventCog
+        await self.add_cog(EventCog(self))
         # Đồng bộ các lệnh slash command
         await self.tree.sync()
         logger.info("Đồng bộ danh sách lệnh slash command thành công.")

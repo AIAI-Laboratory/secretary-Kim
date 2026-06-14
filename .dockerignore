@@ -1,0 +1,30 @@
+# Git and local configs
+.git
+.gitignore
+.python-version
+README.md
+requirement.md
+
+# Virtual environments
+.venv
+venv
+env
+
+# Python caching
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Local data and secrets
+.env
+temp/
+*.pdf
+*.log
+
+# Docker metadata
+Dockerfile
+.dockerignore

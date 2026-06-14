@@ -10,8 +10,8 @@ class Settings(BaseSettings):
     
     DISCORD_BOT_TOKEN: str = ""
     GEMINI_API_KEY: str = ""
-    GEMINI_PRIMARY_MODEL: str = "gemini-3.5-flash"
-    GEMINI_FALLBACK_MODEL: str = "gemini-3.1-flash-lite"
+    GEMINI_PRIMARY_MODEL: str = "gemini-3.1-flash-lite"
+    GEMINI_FALLBACK_MODEL: str = "gemini-3.5-flash"
     TEMP_DIR: str = "temp"
 
 settings = Settings()
