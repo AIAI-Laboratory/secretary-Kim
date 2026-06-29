@@ -71,7 +71,3 @@ temp/
 *.swp
 *.swo
 .DS_Store
-
-# Ignore all directories starting with a dot
-**/.*/
-
