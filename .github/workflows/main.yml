@@ -1,0 +1,32 @@
+name: Deploy Kim Application
+
+on:
+  push:
+    branches: ["main"]
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Deploy to Production
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.HOST }}
+          username: ${{ secrets.USERNAME }}
+          password: ${{ secrets.PASSWORD }}
+          script: |
+            cd /root/app/please-summarize
+
+            git pull origin main
+
+            docker stop secretary-kim || true
+            docker rm secretary-kim || true
+
+            docker build -t secretary-kim-bot .
+
+            docker run -d \
+            --name secretary-kim \
+            --env-file .env \
+            --restart unless-stopped \
+            secretary-kim-bot
