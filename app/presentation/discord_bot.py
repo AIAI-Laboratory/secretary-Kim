@@ -29,6 +29,7 @@ class GuildMusicManager:
         self.voice_client = None
         self.text_channel = None  # Kênh chat để gửi thông báo phát nhạc
         self.loop = False  # Trạng thái lặp lại bài hát hiện tại
+        self.disconnect_task = None  # Task đếm ngược tự động rời phòng
 
     async def add_track(self, track: dict, text_channel: discord.TextChannel) -> bool:
         """Thêm bài hát mới vào hàng chờ. Trả về True nếu phát ngay, False nếu xếp hàng."""
@@ -304,11 +305,84 @@ class MusicCog(commands.Cog):
 
         await interaction.response.send_message(embed=embed)
 
+    @commands.Cog.listener()
+    async def on_voice_state_update(self, member: discord.Member, before: discord.VoiceState, after: discord.VoiceState):
+        voice_client = member.guild.voice_client
+        
+        # Nếu bot không còn ở trong bất kỳ kênh thoại nào hoặc mất kết nối, hủy task và dọn dẹp state
+        if not voice_client or not voice_client.is_connected() or not voice_client.channel:
+            manager = self.bot.get_manager(member.guild.id)
+            if manager.disconnect_task and not manager.disconnect_task.done():
+                manager.disconnect_task.cancel()
+                manager.disconnect_task = None
+            # Dọn dẹp state nếu chính bot bị ngắt kết nối
+            if member.id == self.bot.user.id and before.channel is not None and after.channel is None:
+                manager.queue.clear()
+                manager.current = None
+                manager.loop = False
+                logger.info(f"Bot disconnected from voice in guild {member.guild.id}. Cleared music manager state.")
+            return
+
+        bot_channel = voice_client.channel
+        
+        # Chỉ xử lý nếu sự kiện xảy ra trong kênh thoại bot đang kết nối
+        in_before = before.channel == bot_channel
+        in_after = after.channel == bot_channel
+        
+        if not in_before and not in_after:
+            return
+
+        # Đếm số lượng thành viên không phải bot trong kênh thoại
+        non_bot_members = [m for m in bot_channel.members if not m.bot]
+        manager = self.bot.get_manager(member.guild.id)
+        
+        if len(non_bot_members) == 0:
+            # Nếu không còn người dùng nào, bắt đầu đếm ngược 10 giây
+            if not manager.disconnect_task or manager.disconnect_task.done():
+                logger.info(f"All members left voice channel {bot_channel.name} in guild {member.guild.id}. Starting 10s leave timer.")
+                manager.disconnect_task = self.bot.loop.create_task(self.leave_after_delay(member.guild.id, 10))
+        else:
+            # Nếu có người dùng quay lại/ở trong kênh thoại, hủy đếm ngược
+            if manager.disconnect_task and not manager.disconnect_task.done():
+                logger.info(f"Human found in voice channel {bot_channel.name} in guild {member.guild.id}. Cancelling leave timer.")
+                manager.disconnect_task.cancel()
+                manager.disconnect_task = None
+
+    async def leave_after_delay(self, guild_id: int, delay: int):
+        await asyncio.sleep(delay)
+        guild = self.bot.get_guild(guild_id)
+        if not guild:
+            return
+            
+        voice_client = guild.voice_client
+        if not voice_client or not voice_client.is_connected() or not voice_client.channel:
+            return
+            
+        # Kiểm tra lại số lượng thành viên thực tế một lần nữa trước khi leave
+        non_bot_members = [m for m in voice_client.channel.members if not m.bot]
+        if len(non_bot_members) == 0:
+            manager = self.bot.get_manager(guild_id)
+            manager.queue.clear()
+            manager.current = None
+            manager.loop = False
+            
+            await voice_client.disconnect()
+            logger.info(f"Bot automatically left voice channel {voice_client.channel.name} in guild {guild_id} due to inactivity (10s empty).")
+            
+            if manager.text_channel:
+                try:
+                    embed = discord.Embed(
+                        description="👋 Đã rời khỏi kênh thoại vì không có người trong phòng sau 10 giây.",
+                        color=0x5865F2
+                    )
+                    await manager.text_channel.send(embed=embed)
+                except Exception as e:
+                    logger.warning(f"Không thể gửi thông báo tự động rời phòng: {e}")
+
 class MusicBot(commands.Bot):
     """Client bot chính, xử lý kết nối và điều phối sự kiện."""
     def __init__(self, music_service: MusicService, event_agent_service: EventAgentService, task_management_agent_service: TaskManagementAgentService, *args, **kwargs):
         intents = discord.Intents.default()
-        intents.message_content = True
         intents.voice_states = True
         
         super().__init__(command_prefix="!", intents=intents, *args, **kwargs)
