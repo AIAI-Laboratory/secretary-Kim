@@ -16,7 +16,7 @@ jobs:
           username: ${{ secrets.USERNAME }}
           password: ${{ secrets.PASSWORD }}
           script: |
-            cd /root/app/please-summarize
+            cd /root/app/kim
 
             git pull origin main
 
