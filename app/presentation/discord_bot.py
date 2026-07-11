@@ -3,16 +3,17 @@ from discord.ext import commands
 from discord import app_commands
 import asyncio
 from app.services.music import MusicService
-from app.services.agent.event_management import EventAgentService
-from app.services.agent.task_management import TaskManagementAgentService
+from app.services.event import EventService
+from app.services.task import TaskService
+from app.agent.core import KimAgent
 from app.core.logger import get_logger
 
 logger = get_logger(__name__)
 
 def format_duration(seconds: int) -> str:
-    """Định dạng số giây thành chuỗi thời gian HH:MM:SS hoặc MM:SS."""
+    """Format seconds to HH:MM:SS or MM:SS time string."""
     if not seconds:
-        return "Trực tiếp / Không xác định"
+        return "Live / Unknown"
     mins, secs = divmod(seconds, 60)
     hours, mins = divmod(mins, 60)
     if hours > 0:
@@ -20,19 +21,19 @@ def format_duration(seconds: int) -> str:
     return f"{mins:02d}:{secs:02d}"
 
 class GuildMusicManager:
-    """Quản lý hàng chờ và phát nhạc cho từng Guild (Server) riêng biệt."""
+    """Manage queue and play music for each distinct Guild (Server)."""
     def __init__(self, bot, guild_id: int):
         self.bot = bot
         self.guild_id = guild_id
-        self.queue = []  # Hàng chờ chứa các thông tin bài hát
-        self.current = None  # Bài hát đang phát hiện tại
+        self.queue = []  # Queue containing song info
+        self.current = None  # Currently playing song
         self.voice_client = None
-        self.text_channel = None  # Kênh chat để gửi thông báo phát nhạc
-        self.loop = False  # Trạng thái lặp lại bài hát hiện tại
-        self.disconnect_task = None  # Task đếm ngược tự động rời phòng
+        self.text_channel = None  # Chat channel to send music announcements
+        self.loop = False  # Loop state of the current song
+        self.disconnect_task = None  # Countdown task to automatically leave the voice channel
 
     async def add_track(self, track: dict, text_channel: discord.TextChannel) -> bool:
-        """Thêm bài hát mới vào hàng chờ. Trả về True nếu phát ngay, False nếu xếp hàng."""
+        """Add a new song to the queue. Returns True if playing immediately, False if queued."""
         self.text_channel = text_channel
         self.queue.append(track)
         
@@ -42,7 +43,7 @@ class GuildMusicManager:
         return False
 
     async def play_next(self):
-        """Phát bài tiếp theo trong hàng chờ."""
+        """Play the next song in the queue."""
         if not self.voice_client or not self.voice_client.is_connected():
             return
 
@@ -50,13 +51,13 @@ class GuildMusicManager:
             self.current = None
             if self.text_channel:
                 embed = discord.Embed(
-                    description="🎵 Đã phát hết nhạc trong danh sách chờ.",
+                    description="🎵 All songs in the queue have been played.",
                     color=0x5865F2
                 )
                 await self.text_channel.send(embed=embed)
             return
 
-        # Xác định bài hát tiếp theo
+        # Determine the next song
         if self.loop and self.current:
             track = self.current
         else:
@@ -64,61 +65,61 @@ class GuildMusicManager:
             self.current = track
 
         try:
-            # Trích xuất lại link stream trực tiếp từ Youtube do link của YouTube hết hạn sau vài giờ
+            # Re-extract direct stream URL from YouTube because YouTube links expire after a few hours
             try:
                 info = await self.bot.music_service.extract_info(track['webpage_url'])
                 stream_url = info['url']
             except Exception as e:
-                logger.warning(f"Không thể làm mới URL stream, sử dụng URL gốc: {e}")
+                logger.warning(f"Could not refresh stream URL, using original URL: {e}")
                 stream_url = track['url']
 
             source = discord.FFmpegPCMAudio(stream_url, **self.bot.music_service.ffmpeg_options)
             
             def after_playing(error):
                 if error:
-                    logger.error(f"Lỗi khi phát nhạc tại server {self.guild_id}: {error}")
-                # Schedule play_next() vào event loop từ audio thread
-                # Dùng ensure_future thay vì lồng run_coroutine_threadsafe trong lambda
+                    logger.error(f"Error playing music on server {self.guild_id}: {error}")
+                # Schedule play_next() in the event loop from the audio thread
+                # Use ensure_future instead of nesting run_coroutine_threadsafe in lambda
                 self.bot.loop.call_soon_threadsafe(
                     asyncio.ensure_future, self.play_next()
                 )
 
             self.voice_client.play(source, after=after_playing)
 
-            # Gửi embed thông tin bài hát đang phát
+            # Send embed with currently playing song info
             embed = discord.Embed(
-                title="▶️ Đang phát nhạc",
+                title="▶️ Now Playing",
                 description=f"**[{track['title']}]({track['webpage_url']})**",
                 color=0x57F287  # Emerald Green
             )
             if track['thumbnail']:
                 embed.set_thumbnail(url=track['thumbnail'])
-            embed.add_field(name="⏱️ Thời lượng", value=format_duration(track['duration']), inline=True)
-            embed.add_field(name="👤 Kênh", value=track['uploader'], inline=True)
-            embed.set_footer(text=f"Yêu cầu bởi {track.get('requester', 'Ẩn danh')}" + (" | 🔁 Chế độ lặp đang bật" if self.loop else ""))
+            embed.add_field(name="⏱️ Duration", value=format_duration(track['duration']), inline=True)
+            embed.add_field(name="👤 Channel", value=track['uploader'], inline=True)
+            embed.set_footer(text=f"Requested by {track.get('requester', 'Anonymous')}" + (" | 🔁 Loop mode is ON" if self.loop else ""))
             
             if self.text_channel:
                 await self.text_channel.send(embed=embed)
 
         except Exception as e:
-            logger.error(f"Lỗi khi bắt đầu phát nhạc: {e}")
+            logger.error(f"Error starting music playback: {e}")
             if self.text_channel:
-                await self.text_channel.send(f"❌ Có lỗi xảy ra khi tải bài hát **{track['title']}**: {e}")
-            # Thử bài hát tiếp theo
+                await self.text_channel.send(f"❌ An error occurred while loading track **{track['title']}**: {e}")
+            # Try the next song
             await self.play_next()
 
 class MusicCog(commands.Cog):
-    """Cog chứa các lệnh điều khiển nhạc."""
+    """Cog containing music control commands."""
     def __init__(self, bot):
         self.bot = bot
 
-    @app_commands.command(name="play", description="Phát nhạc từ YouTube (nhập liên kết hoặc từ khóa tìm kiếm)")
-    @app_commands.describe(query="Đường dẫn video YouTube hoặc từ khóa cần tìm kiếm")
+    @app_commands.command(name="play", description="Play music from YouTube (enter link or search keywords)")
+    @app_commands.describe(query="YouTube video link or search keywords")
     async def play(self, interaction: discord.Interaction, query: str):
-        # Kiểm tra xem người dùng có ở trong kênh thoại không
+        # Check if the user is in a voice channel
         if not interaction.user.voice or not interaction.user.voice.channel:
             embed = discord.Embed(
-                description="❌ Bạn cần tham gia vào một kênh thoại trước khi sử dụng lệnh này!",
+                description="❌ You need to join a voice channel before using this command!",
                 color=0xED4245
             )
             await interaction.response.send_message(embed=embed, ephemeral=True)
@@ -127,47 +128,47 @@ class MusicCog(commands.Cog):
         user_channel = interaction.user.voice.channel
         await interaction.response.defer()
 
-        # Kết nối hoặc di chuyển bot tới kênh thoại của người dùng
+        # Connect or move the bot to the user's voice channel
         voice_client = interaction.guild.voice_client
         if not voice_client:
             try:
                 voice_client = await user_channel.connect()
             except Exception as e:
-                logger.error(f"Không thể kết nối đến kênh thoại: {e}")
+                logger.error(f"Cannot connect to voice channel: {e}")
                 embed = discord.Embed(
-                    description=f"❌ Không thể kết nối tới kênh thoại: {e}",
+                    description=f"❌ Cannot connect to voice channel: {e}",
                     color=0xED4245
                 )
                 await interaction.followup.send(embed=embed)
                 return
         elif voice_client.channel != user_channel:
-            # Di chuyển nếu bot đang rảnh rỗi
+            # Move if the bot is idle
             manager = self.bot.get_manager(interaction.guild_id)
             if not voice_client.is_playing() and not voice_client.is_paused() and manager.current is None:
                 try:
                     await voice_client.move_to(user_channel)
                 except Exception as e:
-                    logger.warning(f"Không thể di chuyển kênh thoại: {e}")
+                    logger.warning(f"Cannot move voice channel: {e}")
 
-        # Tìm kiếm hoặc trích xuất thông tin bài hát
+        # Search for or extract song info
         try:
             info = await self.bot.music_service.extract_info(query)
         except Exception as e:
-            logger.error(f"Lỗi khi trích xuất video: {e}")
+            logger.error(f"Error extracting video: {e}")
             embed = discord.Embed(
-                description=f"❌ Không tìm thấy kết quả hoặc có lỗi xảy ra: {e}",
+                description=f"❌ No matching results found or an error occurred: {e}",
                 color=0xED4245
             )
             await interaction.followup.send(embed=embed)
             return
 
         track = {
-            'title': info.get('title', 'Không có tiêu đề'),
+            'title': info.get('title', 'No Title'),
             'url': info.get('url'),
             'webpage_url': info.get('webpage_url', query),
             'duration': info.get('duration', 0),
             'thumbnail': info.get('thumbnail'),
-            'uploader': info.get('uploader', 'Không xác định'),
+            'uploader': info.get('uploader', 'Unknown'),
             'requester': interaction.user.display_name
         }
 
@@ -178,63 +179,63 @@ class MusicCog(commands.Cog):
         
         if started:
             embed = discord.Embed(
-                description=f"🔍 Đang chuẩn bị phát bài hát: **[{track['title']}]({track['webpage_url']})**",
+                description=f"🔍 Preparing to play track: **[{track['title']}]({track['webpage_url']})**",
                 color=0x5865F2
             )
             await interaction.followup.send(embed=embed)
         else:
             queue_pos = len(manager.queue)
             embed = discord.Embed(
-                title="📥 Đã thêm vào hàng chờ",
+                title="📥 Added to Queue",
                 description=f"**[{track['title']}]({track['webpage_url']})**",
                 color=0xFEE75C  # Yellow/Orange
             )
             if track['thumbnail']:
                 embed.set_thumbnail(url=track['thumbnail'])
-            embed.add_field(name="⏱️ Thời lượng", value=format_duration(track['duration']), inline=True)
-            embed.add_field(name="👤 Kênh", value=track['uploader'], inline=True)
-            embed.add_field(name="🔢 Vị trí hàng chờ", value=str(queue_pos), inline=True)
-            embed.set_footer(text=f"Yêu cầu bởi {track['requester']}")
+            embed.add_field(name="⏱️ Duration", value=format_duration(track['duration']), inline=True)
+            embed.add_field(name="👤 Channel", value=track['uploader'], inline=True)
+            embed.add_field(name="🔢 Queue Position", value=str(queue_pos), inline=True)
+            embed.set_footer(text=f"Requested by {track['requester']}")
             await interaction.followup.send(embed=embed)
 
-    @app_commands.command(name="pause", description="Tạm dừng bài hát đang phát")
+    @app_commands.command(name="pause", description="Pause the currently playing song")
     async def pause(self, interaction: discord.Interaction):
         voice_client = interaction.guild.voice_client
         if not voice_client or not voice_client.is_playing():
-            embed = discord.Embed(description="❌ Hiện tại không có bài hát nào đang phát!", color=0xED4245)
+            embed = discord.Embed(description="❌ There is no song currently playing!", color=0xED4245)
             await interaction.response.send_message(embed=embed, ephemeral=True)
             return
 
         voice_client.pause()
-        embed = discord.Embed(description="⏸️ Đã tạm dừng phát nhạc.", color=0x5865F2)
+        embed = discord.Embed(description="⏸️ Paused the music.", color=0x5865F2)
         await interaction.response.send_message(embed=embed)
 
-    @app_commands.command(name="resume", description="Tiếp tục phát bài hát đang tạm dừng")
+    @app_commands.command(name="resume", description="Resume the currently paused song")
     async def resume(self, interaction: discord.Interaction):
         voice_client = interaction.guild.voice_client
         if not voice_client or not voice_client.is_paused():
-            embed = discord.Embed(description="❌ Hiện tại không có nhạc bị tạm dừng!", color=0xED4245)
+            embed = discord.Embed(description="❌ There is no music currently paused!", color=0xED4245)
             await interaction.response.send_message(embed=embed, ephemeral=True)
             return
 
         voice_client.resume()
-        embed = discord.Embed(description="▶️ Đã tiếp tục phát nhạc.", color=0x5865F2)
+        embed = discord.Embed(description="▶️ Resumed the music.", color=0x5865F2)
         await interaction.response.send_message(embed=embed)
 
-    @app_commands.command(name="skip", description="Bỏ qua bài hát hiện tại")
+    @app_commands.command(name="skip", description="Skip the current song")
     async def skip(self, interaction: discord.Interaction):
         voice_client = interaction.guild.voice_client
         if not voice_client or not voice_client.is_playing():
-            embed = discord.Embed(description="❌ Không có bài hát nào đang phát để bỏ qua!", color=0xED4245)
+            embed = discord.Embed(description="❌ There is no song currently playing to skip!", color=0xED4245)
             await interaction.response.send_message(embed=embed, ephemeral=True)
             return
 
-        # Dừng bài hát hiện tại. Hàm after_playing sẽ tự động gọi phát bài kế tiếp.
+        # Stop the current song. after_playing will automatically play the next song.
         voice_client.stop()
-        embed = discord.Embed(description="⏭️ Đã bỏ qua bài hát hiện tại.", color=0x5865F2)
+        embed = discord.Embed(description="⏭️ Skipped the current song.", color=0x5865F2)
         await interaction.response.send_message(embed=embed)
 
-    @app_commands.command(name="stop", description="Dừng phát nhạc và xóa hàng chờ")
+    @app_commands.command(name="stop", description="Stop music playback and clear the queue")
     async def stop(self, interaction: discord.Interaction):
         manager = self.bot.get_manager(interaction.guild_id)
         manager.queue.clear()
@@ -245,14 +246,14 @@ class MusicCog(commands.Cog):
         if voice_client:
             voice_client.stop()
 
-        embed = discord.Embed(description="⏹️ Đã dừng nhạc và xóa sạch danh sách chờ.", color=0xED4245)
+        embed = discord.Embed(description="⏹️ Stopped music and cleared the queue.", color=0xED4245)
         await interaction.response.send_message(embed=embed)
 
-    @app_commands.command(name="leave", description="Rời khỏi kênh thoại hiện tại")
+    @app_commands.command(name="leave", description="Leave the current voice channel")
     async def leave(self, interaction: discord.Interaction):
         voice_client = interaction.guild.voice_client
         if not voice_client:
-            embed = discord.Embed(description="❌ Bot hiện không ở trong bất cứ kênh thoại nào!", color=0xED4245)
+            embed = discord.Embed(description="❌ The bot is not currently in any voice channel!", color=0xED4245)
             await interaction.response.send_message(embed=embed, ephemeral=True)
             return
 
@@ -262,47 +263,47 @@ class MusicCog(commands.Cog):
         manager.loop = False
 
         await voice_client.disconnect()
-        embed = discord.Embed(description="👋 Đã ngắt kết nối và dọn sạch hàng chờ.", color=0x5865F2)
+        embed = discord.Embed(description="👋 Disconnected and cleared the queue.", color=0x5865F2)
         await interaction.response.send_message(embed=embed)
 
-    @app_commands.command(name="loop", description="Bật/Tắt chế độ lặp lại bài hát hiện tại")
+    @app_commands.command(name="loop", description="Toggle loop mode for the current song")
     async def loop(self, interaction: discord.Interaction):
         manager = self.bot.get_manager(interaction.guild_id)
         manager.loop = not manager.loop
-        status = "BẬT" if manager.loop else "TẮT"
-        embed = discord.Embed(description=f"🔁 Đã **{status}** chế độ lặp lại bài hát hiện tại.", color=0x5865F2)
+        status = "ON" if manager.loop else "OFF"
+        embed = discord.Embed(description=f"🔁 Loop mode is now **{status}** for the current song.", color=0x5865F2)
         await interaction.response.send_message(embed=embed)
 
-    @app_commands.command(name="queue", description="Hiển thị danh sách nhạc đang chờ")
+    @app_commands.command(name="queue", description="Display the current queue")
     async def queue(self, interaction: discord.Interaction):
         manager = self.bot.get_manager(interaction.guild_id)
         
         if not manager.current and len(manager.queue) == 0:
-            embed = discord.Embed(description="🎵 Danh sách chờ đang trống!", color=0x5865F2)
+            embed = discord.Embed(description="🎵 The queue is empty!", color=0x5865F2)
             await interaction.response.send_message(embed=embed)
             return
 
-        embed = discord.Embed(title="🎵 Danh sách phát nhạc", color=0x5865F2)
+        embed = discord.Embed(title="🎵 Music Queue", color=0x5865F2)
         
         if manager.current:
             embed.add_field(
-                name="▶️ Đang phát", 
-                value=f"**[{manager.current['title']}]({manager.current['webpage_url']})** | `{format_duration(manager.current['duration'])}` (Yêu cầu bởi: {manager.current['requester']})",
+                name="▶️ Now Playing", 
+                value=f"**[{manager.current['title']}]({manager.current['webpage_url']})** | `{format_duration(manager.current['duration'])}` (Requested by: {manager.current['requester']})",
                 inline=False
             )
 
         if len(manager.queue) > 0:
             queue_lines = []
             for i, track in enumerate(manager.queue[:10], start=1):
-                queue_lines.append(f"`{i}.` **[{track['title']}]({track['webpage_url']})** | `{format_duration(track['duration'])}` (Yêu cầu bởi: {track['requester']})")
+                queue_lines.append(f"`{i}.` **[{track['title']}]({track['webpage_url']})** | `{format_duration(track['duration'])}` (Requested by: {track['requester']})")
             
             value = "\n".join(queue_lines)
             if len(manager.queue) > 10:
-                value += f"\n*và {len(manager.queue) - 10} bài hát khác...*"
+                value += f"\n*and {len(manager.queue) - 10} other songs...*"
                 
-            embed.add_field(name="📥 Hàng chờ", value=value, inline=False)
+            embed.add_field(name="📥 Queue", value=value, inline=False)
         else:
-            embed.add_field(name="📥 Hàng chờ", value="Không có bài hát nào tiếp theo trong hàng chờ.", inline=False)
+            embed.add_field(name="📥 Queue", value="No songs in the queue.", inline=False)
 
         await interaction.response.send_message(embed=embed)
 
@@ -310,13 +311,13 @@ class MusicCog(commands.Cog):
     async def on_voice_state_update(self, member: discord.Member, before: discord.VoiceState, after: discord.VoiceState):
         voice_client = member.guild.voice_client
         
-        # Nếu bot không còn ở trong bất kỳ kênh thoại nào hoặc mất kết nối, hủy task và dọn dẹp state
+        # If bot is no longer in any voice channel or disconnected, cancel the task and clean up the state
         if not voice_client or not voice_client.is_connected() or not voice_client.channel:
             manager = self.bot.get_manager(member.guild.id)
             if manager.disconnect_task and not manager.disconnect_task.done():
                 manager.disconnect_task.cancel()
                 manager.disconnect_task = None
-            # Dọn dẹp state nếu chính bot bị ngắt kết nối
+            # Clean up the state if the bot itself is disconnected
             if member.id == self.bot.user.id and before.channel is not None and after.channel is None:
                 manager.queue.clear()
                 manager.current = None
@@ -326,24 +327,24 @@ class MusicCog(commands.Cog):
 
         bot_channel = voice_client.channel
         
-        # Chỉ xử lý nếu sự kiện xảy ra trong kênh thoại bot đang kết nối
+        # Only process if the event happens in the voice channel the bot is connected to
         in_before = before.channel == bot_channel
         in_after = after.channel == bot_channel
         
         if not in_before and not in_after:
             return
 
-        # Đếm số lượng thành viên không phải bot trong kênh thoại
+        # Count the number of non-bot members in the voice channel
         non_bot_members = [m for m in bot_channel.members if not m.bot]
         manager = self.bot.get_manager(member.guild.id)
         
         if len(non_bot_members) == 0:
-            # Nếu không còn người dùng nào, bắt đầu đếm ngược 10 giây
+            # If no users are left, start a 10-second countdown to leave
             if not manager.disconnect_task or manager.disconnect_task.done():
                 logger.info(f"All members left voice channel {bot_channel.name} in guild {member.guild.id}. Starting 10s leave timer.")
                 manager.disconnect_task = self.bot.loop.create_task(self.leave_after_delay(member.guild.id, 10))
         else:
-            # Nếu có người dùng quay lại/ở trong kênh thoại, hủy đếm ngược
+            # If a user returns/is in the voice channel, cancel the countdown
             if manager.disconnect_task and not manager.disconnect_task.done():
                 logger.info(f"Human found in voice channel {bot_channel.name} in guild {member.guild.id}. Cancelling leave timer.")
                 manager.disconnect_task.cancel()
@@ -359,7 +360,7 @@ class MusicCog(commands.Cog):
         if not voice_client or not voice_client.is_connected() or not voice_client.channel:
             return
             
-        # Kiểm tra lại số lượng thành viên thực tế một lần nữa trước khi leave
+        # Re-check the actual number of members before leaving
         non_bot_members = [m for m in voice_client.channel.members if not m.bot]
         if len(non_bot_members) == 0:
             manager = self.bot.get_manager(guild_id)
@@ -373,23 +374,24 @@ class MusicCog(commands.Cog):
             if manager.text_channel:
                 try:
                     embed = discord.Embed(
-                        description="👋 Đã rời khỏi kênh thoại vì không có người trong phòng sau 10 giây.",
+                        description="👋 Left the voice channel due to inactivity (10 seconds empty).",
                         color=0x5865F2
                     )
                     await manager.text_channel.send(embed=embed)
                 except Exception as e:
-                    logger.warning(f"Không thể gửi thông báo tự động rời phòng: {e}")
+                    logger.warning(f"Could not send auto-leave notification: {e}")
 
 class MusicBot(commands.Bot):
-    """Client bot chính, xử lý kết nối và điều phối sự kiện."""
-    def __init__(self, music_service: MusicService, event_agent_service: EventAgentService, task_management_agent_service: TaskManagementAgentService, *args, **kwargs):
+    """Main bot client, handles connection and event dispatching."""
+    def __init__(self, kim_agent: KimAgent, music_service: MusicService, event_service: EventService, task_service: TaskService, *args, **kwargs):
         intents = discord.Intents.default()
         intents.voice_states = True
         
         super().__init__(command_prefix="!", intents=intents, *args, **kwargs)
+        self.kim_agent = kim_agent
         self.music_service = music_service
-        self.event_agent_service = event_agent_service
-        self.task_management_agent_service = task_management_agent_service
+        self.event_service = event_service
+        self.task_service = task_service
         self.managers = {}
 
     def get_manager(self, guild_id: int) -> GuildMusicManager:
@@ -398,15 +400,15 @@ class MusicBot(commands.Bot):
         return self.managers[guild_id]
 
     async def setup_hook(self):
-        # Đăng ký Cog điều khiển nhạc
+        # Register music control Cog
         await self.add_cog(MusicCog(self))
-        # Đăng ký Cog xử lý event AI
+        # Register AI event Cog
         from app.presentation.event_cog import EventCog
         await self.add_cog(EventCog(self))
-        # Đồng bộ các lệnh slash command
+        # Sync slash commands
         await self.tree.sync()
-        logger.info("Đồng bộ danh sách lệnh slash command thành công.")
+        logger.info("Slash commands synced successfully.")
 
     async def on_ready(self):
-        logger.info(f"Bot đăng nhập thành công dưới tên {self.user} (ID: {self.user.id})")
-        logger.info("Bot đã sẵn sàng phục vụ phát nhạc!")
+        logger.info(f"Bot logged in successfully as {self.user} (ID: {self.user.id})")
+        logger.info("Bot is ready to serve music!")

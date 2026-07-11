@@ -1,4 +1,4 @@
-# 📋 Secretary Kim (Thư Ký Kim)
+# 📋 Secretary Kim
 
 Secretary Kim is a premium, feature-rich Discord bot designed to be a personal server assistant. It combines a high-performance **YouTube Music Player** with a state-of-the-art **Gemini-powered Natural Language Event & Task Scheduler**. 
 
@@ -9,7 +9,7 @@ Built with modern Python development practices, Secretary Kim is structured usin
 ## 🌟 Key Features
 
 ### 🤖 1. AI-Powered Event & Task Scheduling
-*   **Natural Language Processing**: Schedule events simply by typing. Execute `/kim <your request>` (e.g., `/kim "Tạo một task thiết kế giao diện mobile hạn chót thứ sáu này gán cho @Duy"`).
+*   **Natural Language Processing**: Schedule events simply by typing. Execute `/kim <your request>` (e.g., `/kim "Create a mobile UI design task with deadline this Friday and assign it to @Duy"`).
 *   **Gemini Integration**: Uses Google's Gemini Pro model (`google-genai`) to parse relative dates/times, recognize assignees from the server member list, and extract specific meeting location preferences.
 *   **Smart Voice Channel Mapping**: Automatically matches voice channel names referenced in requests to active voice channels in the server.
 
