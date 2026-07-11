@@ -77,9 +77,10 @@ class GuildMusicManager:
             def after_playing(error):
                 if error:
                     logger.error(f"Lỗi khi phát nhạc tại server {self.guild_id}: {error}")
-                # Trở lại event loop của bot để phát bài tiếp theo
+                # Schedule play_next() vào event loop từ audio thread
+                # Dùng ensure_future thay vì lồng run_coroutine_threadsafe trong lambda
                 self.bot.loop.call_soon_threadsafe(
-                    lambda: asyncio.run_coroutine_threadsafe(self.play_next(), self.bot.loop)
+                    asyncio.ensure_future, self.play_next()
                 )
 
             self.voice_client.play(source, after=after_playing)
