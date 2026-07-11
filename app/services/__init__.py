@@ -1,5 +1,5 @@
 from app.services.music import MusicService
-from app.services.agent.event_management import EventAgentService
-from app.services.agent.task_management import TaskManagementAgentService
+from app.services.event import EventService
+from app.services.task import TaskService
 
-__all__ = ["MusicService", "EventAgentService", "TaskManagementAgentService"]
+__all__ = ["MusicService", "EventService", "TaskService"]

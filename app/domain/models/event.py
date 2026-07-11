@@ -7,7 +7,7 @@ class ProposedAction(BaseModel):
     )
     event_name: Optional[str] = Field(
         None,
-        description="The title/name of the event or task (e.g. 'Thiết kế giao diện mobile')"
+        description="The title/name of the event or task (e.g. 'Design mobile interface')"
     )
     description: Optional[str] = Field(
         None,
