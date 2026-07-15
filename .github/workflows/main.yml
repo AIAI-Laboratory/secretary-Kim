@@ -15,10 +15,14 @@ jobs:
           host: ${{ secrets.HOST }}
           username: ${{ secrets.USERNAME }}
           password: ${{ secrets.PASSWORD }}
+          envs: ENV_FILE
           script: |
             cd /root/app/kim
 
             git pull origin main
+
+            # Ghi đè file .env trên host từ GitHub secret ENV_FILE
+            echo "$ENV_FILE" > .env
 
             docker stop secretary-kim || true
             docker rm secretary-kim || true
@@ -30,3 +34,5 @@ jobs:
             --env-file .env \
             --restart unless-stopped \
             secretary-kim-bot
+        env:
+          ENV_FILE: ${{ secrets.ENV_FILE }}
