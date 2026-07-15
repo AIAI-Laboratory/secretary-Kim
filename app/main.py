@@ -25,6 +25,7 @@ def main():
     registry.register(container.music_skill())
     registry.register(container.event_skill())
     registry.register(container.gacha_skill())
+    registry.register(container.attendance_skill())
 
     # Get the unique bot instance (Singleton) from Container
     bot = container.discord_bot()

@@ -28,8 +28,8 @@ class GachaSkill(BaseSkill):
     @property
     def description(self) -> str:
         return (
-            "Handles Pokemon Gacha rolls, collection view, feeding pets focus fruits to evolve them, "
-            "and starting/cancelling Pomodoro focus sessions to earn currency (FP and Fruits)."
+            "Handles Pokemon Gacha rolls, collection view, feeding pets coins to evolve them, "
+            "and active Pokemon selection and Pomodoro focus sessions to earn currency (FP and Fruits)."
         )
 
     def get_function_declarations(self) -> List[types.FunctionDeclaration]:
@@ -64,7 +64,7 @@ class GachaSkill(BaseSkill):
             ),
             types.FunctionDeclaration(
                 name="feed_pet",
-                description="Feed a Focus Fruit to the active Pokemon companion to restore HP and gain XP/levels.",
+                description="Feed 20 Coins to the active Pokemon companion to restore HP and gain XP/levels.",
                 parameters={"type": "OBJECT", "properties": {}},
             ),
         ]
@@ -149,10 +149,17 @@ class GachaSkill(BaseSkill):
             user_profile = await self.gacha_service.check_or_create_user(
                 db, context.user_id
             )
-            if user_profile["focus_points"] < 100:
+            async with db.execute(
+                "SELECT attendance_coins FROM users WHERE discord_id = ?",
+                (context.user_id,),
+            ) as cursor:
+                coins_row = await cursor.fetchone()
+            coins = coins_row[0] if coins_row else 100
+
+            if coins < 100:
                 return SkillResult(
                     success=False,
-                    message=f"❌ You do not have enough Focus Points! (You have: {user_profile['focus_points']} FP, need: 100 FP). Completing a Pomodoro grants 100 FP.",
+                    message=f"❌ You do not have enough Coins! (You have: {coins} Coins, need: 100 Coins). Join voice rooms to earn more!",
                 )
 
             try:

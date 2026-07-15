@@ -189,9 +189,7 @@ class GachaCog(commands.Cog):
                     description=msg,
                     color=0x57F287,  # Emerald Green
                 )
-                embed.set_footer(
-                    text=f"Total: {data['focus_points']} FP | {data['focus_fruits']} Fruits"
-                )
+                embed.set_footer(text="Focus Session Completed successfully!")
                 await channel.send(content=f"<@{user_id}>", embed=embed)
 
     @commands.Cog.listener()
@@ -238,24 +236,29 @@ class GachaCog(commands.Cog):
 
     @app_commands.command(
         name="gacha",
-        description="Roll a procedural Pokemon companion (Costs 100 Focus Points)",
+        description="Roll a procedural Pokemon companion (Costs 100 Coins)",
     )
     async def gacha(self, interaction: discord.Interaction):
+        # Defer immediately to avoid timeout (3-second window)
+        await interaction.response.defer()
+
         user_id = str(interaction.user.id)
 
         # Verify currency first to save AI API call budget
         db = await self.bot.db_service.get_db()
-        user_profile = await self.gacha_service.check_or_create_user(db, user_id)
-        if user_profile["focus_points"] < 100:
+        async with db.execute(
+            "SELECT attendance_coins FROM users WHERE discord_id = ?", (user_id,)
+        ) as cursor:
+            coins_row = await cursor.fetchone()
+        coins = coins_row[0] if coins_row else 100
+
+        if coins < 100:
             embed = discord.Embed(
-                description=f"❌ You do not have enough Focus Points! (You have: {user_profile['focus_points']} FP, need: 100 FP). Completing a Pomodoro grants 100 FP.",
+                description=f"❌ You do not have enough Coins! (You have: {coins} Coins, need: 100 Coins). Join voice rooms to earn more!",
                 color=0xED4245,
             )
-            await interaction.response.send_message(embed=embed, ephemeral=True)
+            await interaction.followup.send(embed=embed)
             return
-
-        # Defer because calling Cloudflare Workers AI takes several seconds
-        await interaction.response.defer()
 
         try:
             # 1. Roll Gacha
@@ -373,7 +376,7 @@ class GachaCog(commands.Cog):
         pets = await self.gacha_service.get_user_pets(user_id)
         if not pets:
             embed = discord.Embed(
-                description="❌ Your inventory is empty. Complete Pomodoro focus blocks to earn FP, then use `/gacha`!",
+                description="❌ Your inventory is empty. Join voice rooms to earn Coins, then use `/gacha`!",
                 color=0xED4245,
             )
             await interaction.response.send_message(embed=embed)
@@ -397,9 +400,13 @@ class GachaCog(commands.Cog):
             )
 
         embed.description = "\n".join(lines)
-        embed.set_footer(
-            text=f"Total: {len(pets)} pets | Focus Fruits: {user_profile['focus_fruits']} | FP: {user_profile['focus_points']}"
-        )
+        async with db.execute(
+            "SELECT attendance_coins FROM users WHERE discord_id = ?", (user_id,)
+        ) as cursor:
+            coins_row = await cursor.fetchone()
+        coins = coins_row[0] if coins_row else 100
+
+        embed.set_footer(text=f"Total: {len(pets)} pets | Coins: {coins}")
 
         # Display dropdown selector to set active companion
         view = PetListView(pets, self)
@@ -407,10 +414,29 @@ class GachaCog(commands.Cog):
 
     @app_commands.command(
         name="feed",
-        description="Feed a Focus Fruit to your active Pokemon companion (+XP, +HP, trigger evolutions)",
+        description="Feed 20 Coins to your active companion (+XP, +HP, trigger evolutions)",
     )
     async def feed(self, interaction: discord.Interaction):
+        # Defer immediately to avoid timeout (3-second window)
+        await interaction.response.defer()
+
         user_id = str(interaction.user.id)
+
+        # Verify coins first
+        db = await self.bot.db_service.get_db()
+        async with db.execute(
+            "SELECT attendance_coins FROM users WHERE discord_id = ?", (user_id,)
+        ) as cursor:
+            row = await cursor.fetchone()
+        coins = row[0] if row else 100
+
+        if coins < 20:
+            embed = discord.Embed(
+                description=f"❌ You do not have enough Coins! (You have: {coins} Coins, need: 20 Coins). Join voice rooms to earn more!",
+                color=0xED4245,
+            )
+            await interaction.followup.send(embed=embed)
+            return
 
         # Fetch current pet and state before feeding
         pet_before = await self.gacha_service.get_active_pet(user_id)
@@ -419,20 +445,18 @@ class GachaCog(commands.Cog):
                 description="❌ You do not have an active pet. Use `/gacha` to roll a new companion!",
                 color=0xED4245,
             )
-            await interaction.response.send_message(embed=embed)
+            await interaction.followup.send(embed=embed)
             return
 
         # Call feed active pet
         success, msg, updated_pet = await self.gacha_service.feed_active_pet(user_id)
         if not success:
             embed = discord.Embed(description=f"❌ {msg}", color=0xED4245)
-            await interaction.response.send_message(embed=embed, ephemeral=True)
+            await interaction.followup.send(embed=embed)
             return
 
         # Check for evolution
         if updated_pet["stage"] > pet_before["stage"]:
-            # Defer response because we need to generate new stage graphics!
-            await interaction.response.defer()
             try:
                 new_stage = updated_pet["stage"]
 
@@ -520,8 +544,4 @@ class GachaCog(commands.Cog):
         if img_url:
             embed.set_image(url=img_url)
 
-        (
-            await interaction.followup.send(embed=embed)
-            if interaction.is_expired() or interaction.response.is_done()
-            else await interaction.response.send_message(embed=embed)
-        )
+        await interaction.followup.send(embed=embed)

@@ -33,6 +33,25 @@ class DatabaseService:
                 )
             """)
 
+            # Upgrade schema for attendance tracking
+            for col, col_def in [
+                ("attendance_coins", "INTEGER DEFAULT 100"),
+                ("voice_accumulated_minutes", "INTEGER DEFAULT 0"),
+            ]:
+                try:
+                    await db.execute(f"ALTER TABLE users ADD COLUMN {col} {col_def}")
+                    logger.info(
+                        f"Database migration: Added column '{col}' to 'users' table."
+                    )
+                except Exception as e:
+                    # Column already exists
+                    logger.debug(f"Column '{col}' already exists in 'users' table: {e}")
+
+            # Initialize existing users with 100 coins if they have 0 or NULL
+            await db.execute(
+                "UPDATE users SET attendance_coins = 100 WHERE attendance_coins IS NULL OR attendance_coins = 0"
+            )
+
             # Create pets table
             await db.execute("""
                 CREATE TABLE IF NOT EXISTS pets (

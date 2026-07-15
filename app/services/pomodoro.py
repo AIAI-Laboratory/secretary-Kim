@@ -90,7 +90,7 @@ class PomodoroService:
     async def complete_session(
         self, discord_id: str
     ) -> Tuple[bool, str, Dict[str, Any]]:
-        """Complete the active focus session, award FP & Fruits, and reward active pet."""
+        """Complete the active focus session without any currency rewards."""
         db = await self.db_service.get_db()
         session = await self.get_active_session(discord_id)
         if not session:
@@ -105,65 +105,19 @@ class PomodoroService:
             """,
             (discord_id,),
         )
-
-        # Award 100 FP and 1 Focus Fruit
-        await db.execute(
-            """
-            UPDATE users 
-            SET focus_points = focus_points + 100, focus_fruits = focus_fruits + 1 
-            WHERE discord_id = ?
-            """,
-            (discord_id,),
-        )
-
-        pet_reward_msg = ""
-        active_pet = await self.gacha_service.get_active_pet(discord_id)
-        if active_pet:
-            # Grant active pet 10 XP and restore 10 HP
-            new_hp = min(100, active_pet["hp"] + 10)
-            new_exp = active_pet["exp"] + 10
-            new_level = active_pet["level"]
-
-            level_up = False
-            if new_exp >= 100:
-                new_exp -= 100
-                new_level += 1
-                level_up = True
-
-            await db.execute(
-                "UPDATE pets SET hp = ?, exp = ?, level = ? WHERE id = ?",
-                (new_hp, new_exp, new_level, active_pet["id"]),
-            )
-
-            pet_reward_msg = f"\n💖 Your active pet **{active_pet['name']}** healed 10 HP and gained 10 XP!"
-            if level_up:
-                pet_reward_msg += f" (Level Up! Now Level {new_level}!)"
-
         await db.commit()
-
-        # Get updated user info
-        async with db.execute(
-            "SELECT focus_points, focus_fruits FROM users WHERE discord_id = ?",
-            (discord_id,),
-        ) as cursor:
-            user_row = await cursor.fetchone()
-
-        rewards_data = {
-            "focus_points": user_row[0] if user_row else 0,
-            "focus_fruits": user_row[1] if user_row else 0,
-        }
 
         logger.info(f"User {discord_id} completed Pomodoro focus session successfully.")
         return (
             True,
-            f"🌟 Congratulations! Focus session completed!\n💰 Earning: **+100 Focus Points (FP)** and **+1 Focus Fruit**!{pet_reward_msg}",
-            rewards_data,
+            "🌟 Congratulations! Focus session completed!",
+            {},
         )
 
     async def cancel_session(
         self, discord_id: str, penalize: bool = True
     ) -> Tuple[bool, str]:
-        """Cancel the active focus session. If penalize is True, deducts active pet HP."""
+        """Cancel the active focus session without any penalty."""
         db = await self.db_service.get_db()
         session = await self.get_active_session(discord_id)
         if not session:
@@ -178,18 +132,6 @@ class PomodoroService:
             """,
             (discord_id,),
         )
-
-        penalty_msg = ""
-        if penalize:
-            active_pet = await self.gacha_service.get_active_pet(discord_id)
-            if active_pet:
-                # Deduct 20 HP from active pet (cannot drop below 1 HP)
-                new_hp = max(1, active_pet["hp"] - 20)
-                await db.execute(
-                    "UPDATE pets SET hp = ? WHERE id = ?", (new_hp, active_pet["id"])
-                )
-                penalty_msg = f"\n💔 Due to distraction, your active pet **{active_pet['name']}** lost 20 HP! (Current HP: {new_hp}/100)"
-
         await db.commit()
         logger.info(f"User {discord_id} cancelled Pomodoro focus session.")
-        return True, f"❌ Focus session cancelled.{penalty_msg}"
+        return True, "❌ Focus session cancelled."

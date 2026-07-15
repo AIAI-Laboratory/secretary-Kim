@@ -275,7 +275,7 @@ class GachaService:
         self.gemini_client = genai.Client(api_key=settings.GEMINI_API_KEY or None)
 
     async def check_or_create_user(self, db, discord_id: str) -> Dict[str, Any]:
-        """Check if user exists; if not, create them with starting currency (200 FP, 2 Fruits)."""
+        """Check if user exists; if not, create them with starting currency (200 FP, 2 Fruits, 100 Coins)."""
         async with db.execute(
             "SELECT * FROM users WHERE discord_id = ?", (discord_id,)
         ) as cursor:
@@ -283,15 +283,18 @@ class GachaService:
 
         if not user:
             await db.execute(
-                "INSERT INTO users (discord_id, focus_points, focus_fruits) VALUES (?, ?, ?)",
-                (discord_id, 200, 2),
+                "INSERT INTO users (discord_id, focus_points, focus_fruits, attendance_coins, voice_accumulated_minutes) VALUES (?, ?, ?, ?, ?)",
+                (discord_id, 200, 2, 100, 0),
             )
             await db.commit()
-            logger.info(f"Created new user in DB: {discord_id} with 200 FP, 2 Fruits.")
+            logger.info(
+                f"Created new user in DB: {discord_id} with 200 FP, 2 Fruits, 100 Coins."
+            )
             return {
                 "discord_id": discord_id,
                 "focus_points": 200,
                 "focus_fruits": 2,
+                "attendance_coins": 100,
                 "active_pet_id": None,
             }
 
@@ -437,14 +440,22 @@ class GachaService:
         """
         db = await self.db_service.get_db()
         try:
-            # 1. User check and FP verification
+            # 1. User check and Coins verification
             user = await self.check_or_create_user(db, discord_id)
-            if user["focus_points"] < 100:
-                raise ValueError("Not enough Focus Points! (Need 100 FP for Gacha)")
+            async with db.execute(
+                "SELECT attendance_coins FROM users WHERE discord_id = ?", (discord_id,)
+            ) as cursor:
+                coins_row = await cursor.fetchone()
+            coins = coins_row[0] if coins_row else 100
 
-            # Deduct FP
+            if coins < 100:
+                raise ValueError(
+                    f"Not enough Coins! (You have: {coins} Coins, need 100 Coins for Gacha)"
+                )
+
+            # Deduct Coins
             await db.execute(
-                "UPDATE users SET focus_points = focus_points - 100 WHERE discord_id = ?",
+                "UPDATE users SET attendance_coins = attendance_coins - 100 WHERE discord_id = ?",
                 (discord_id,),
             )
 
@@ -632,11 +643,17 @@ class GachaService:
     ) -> Tuple[bool, str, Optional[Dict[str, Any]]]:
         """Feed a fruit to the active pet. Restores HP or gains XP. Triggers evolution if level/XP milestones met."""
         db = await self.db_service.get_db()
-        user = await self.check_or_create_user(db, discord_id)
-        if user["focus_fruits"] <= 0:
+        # Check user coins (feeding costs 20 Coins)
+        async with db.execute(
+            "SELECT attendance_coins FROM users WHERE discord_id = ?", (discord_id,)
+        ) as cursor:
+            coins_row = await cursor.fetchone()
+        coins = coins_row[0] if coins_row else 100
+
+        if coins < 20:
             return (
                 False,
-                "You don't have any Focus Fruits! Complete Pomodoro sessions to earn fruits.",
+                f"You don't have enough Coins! (You have: {coins} Coins, need 20 Coins to feed).",
                 None,
             )
 
@@ -688,9 +705,9 @@ class GachaService:
             evolution_triggered = True
             evolution_text = f"🌟 MYTHICAL MEGA EVOLUTION! {pet['name']} has transcended into **{pet['mega_name']}**!"
 
-        # Deduct fruit and update pet
+        # Deduct coins and update pet
         await db.execute(
-            "UPDATE users SET focus_fruits = focus_fruits - 1 WHERE discord_id = ?",
+            "UPDATE users SET attendance_coins = attendance_coins - 20 WHERE discord_id = ?",
             (discord_id,),
         )
         await db.execute(

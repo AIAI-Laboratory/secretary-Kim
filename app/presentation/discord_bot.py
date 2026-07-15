@@ -485,6 +485,7 @@ class MusicBot(commands.Bot):
         db_service: Any,
         gacha_service: Any,
         pomodoro_service: Any,
+        attendance_service: Any = None,
         *args,
         **kwargs,
     ):
@@ -501,6 +502,7 @@ class MusicBot(commands.Bot):
         self.db_service = db_service
         self.gacha_service = gacha_service
         self.pomodoro_service = pomodoro_service
+        self.attendance_service = attendance_service
         self.managers = {}
 
     def get_manager(self, guild_id: int) -> GuildMusicManager:
@@ -529,3 +531,28 @@ class MusicBot(commands.Bot):
     async def on_ready(self):
         logger.info(f"Bot logged in successfully as {self.user} (ID: {self.user.id})")
         logger.info("Bot is ready to serve music!")
+        # Start background loop for voice channel presence tracking
+        self.loop.create_task(self.voice_tracking_loop())
+
+    async def voice_tracking_loop(self):
+        """Background task running every 60 seconds to track presence and update the leaderboard."""
+        await self.wait_until_ready()
+        logger.info("Voice presence tracking loop started.")
+        # Trigger initial leaderboard render/discovery on startup
+        if self.attendance_service:
+            try:
+                await self.attendance_service.update_leaderboard_channel(self)
+            except Exception as e:
+                logger.error(
+                    f"Error doing initial leaderboard render: {e}", exc_info=True
+                )
+
+        while not self.is_closed():
+            try:
+                await asyncio.sleep(60)
+                if self.attendance_service:
+                    await self.attendance_service.track_voice_presence(self)
+            except asyncio.CancelledError:
+                break
+            except Exception as e:
+                logger.error(f"Error in voice tracking loop: {e}", exc_info=True)
