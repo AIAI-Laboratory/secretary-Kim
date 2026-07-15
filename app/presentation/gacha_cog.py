@@ -7,58 +7,89 @@ from discord.ext import commands
 from discord import app_commands
 from app.core.config import settings
 from app.core.logger import get_logger
-from app.services.gacha import GachaService
+from app.services.gacha import GachaService, RARITY_STYLING
 from app.services.pomodoro import PomodoroService
 
 logger = get_logger(__name__)
 
+
 class GachaHDView(discord.ui.View):
     """View containing a button to view the original HD image."""
+
     def __init__(self, hd_url: str):
         super().__init__(timeout=None)
-        self.add_item(discord.ui.Button(label="🖼️ View HD Image", url=hd_url, style=discord.ButtonStyle.link))
+        self.add_item(
+            discord.ui.Button(
+                label="🖼️ View HD Image", url=hd_url, style=discord.ButtonStyle.link
+            )
+        )
+
 
 class PetListSelect(discord.ui.Select):
     """Select dropdown to set active pet."""
+
     def __init__(self, pets, cog):
         self.cog = cog
         options = []
-        for p in pets[:25]: # Discord select allows max 25 options
-            type_str = p['type1'] + (f"/{p['type2']}" if p['type2'] else "")
+        for p in pets[:25]:  # Discord select allows max 25 options
+            type_str = p["type1"] + (f"/{p['type2']}" if p["type2"] else "")
             label = f"ID {p['id']}: {p['name']} (Lv.{p['level']} {p['rarity']})"
             desc = f"Stage {p['stage']} | Type: {type_str} | HP: {p['hp']}/100"
-            options.append(discord.SelectOption(label=label, description=desc, value=str(p['id'])))
-            
-        super().__init__(placeholder="Choose a pet to set as Active...", min_values=1, max_values=1, options=options)
+            options.append(
+                discord.SelectOption(label=label, description=desc, value=str(p["id"]))
+            )
+
+        super().__init__(
+            placeholder="Choose a pet to set as Active...",
+            min_values=1,
+            max_values=1,
+            options=options,
+        )
 
     async def callback(self, interaction: discord.Interaction):
         pet_id = int(self.values[0])
-        success = await self.cog.gacha_service.set_active_pet(str(interaction.user.id), pet_id)
+        success = await self.cog.gacha_service.set_active_pet(
+            str(interaction.user.id), pet_id
+        )
         if success:
-            await interaction.response.send_message(f"✅ Set pet ID **{pet_id}** as your Active companion!", ephemeral=True)
+            await interaction.response.send_message(
+                f"✅ Set pet ID **{pet_id}** as your Active companion!", ephemeral=True
+            )
         else:
-            await interaction.response.send_message("❌ Failed to set active pet. Make sure you own this pet.", ephemeral=True)
+            await interaction.response.send_message(
+                "❌ Failed to set active pet. Make sure you own this pet.",
+                ephemeral=True,
+            )
+
 
 class PetListView(discord.ui.View):
     """View for listing pets with a dropdown selector."""
+
     def __init__(self, pets, cog):
         super().__init__(timeout=180)
         self.add_item(PetListSelect(pets, cog))
 
+
 class GachaCog(commands.Cog):
     """Cog containing Pomodoro focus tracker and Pokemon Gacha commands."""
+
     def __init__(self, bot):
         self.bot = bot
         self.gacha_service: GachaService = bot.gacha_service
         self.pomodoro_service: PomodoroService = bot.pomodoro_service
 
-    @app_commands.command(name="pomodoro-start", description="Start a 25-minute Pomodoro focus session in your current voice channel")
+    @app_commands.command(
+        name="pomodoro-start",
+        description="Start a 25-minute Pomodoro focus session in your current voice channel",
+    )
     @app_commands.describe(duration="Focus duration in minutes (default 25)")
-    async def pomodoro_start(self, interaction: discord.Interaction, duration: Optional[int] = 25):
+    async def pomodoro_start(
+        self, interaction: discord.Interaction, duration: Optional[int] = 25
+    ):
         if not interaction.user.voice or not interaction.user.voice.channel:
             embed = discord.Embed(
                 description="❌ You must join a voice channel before starting a Pomodoro session!",
-                color=0xED4245
+                color=0xED4245,
             )
             await interaction.response.send_message(embed=embed, ephemeral=True)
             return
@@ -69,10 +100,7 @@ class GachaCog(commands.Cog):
 
         # Start the session in database
         success, msg = await self.pomodoro_service.start_session(
-            user_id, 
-            str(voice_channel.id), 
-            str(text_channel.id), 
-            duration
+            user_id, str(voice_channel.id), str(text_channel.id), duration
         )
 
         if not success:
@@ -88,34 +116,40 @@ class GachaCog(commands.Cog):
                 f"**Duration**: {duration} minutes\n\n"
                 "Stay in the voice channel to complete your session. Disconnecting or switching channels will cancel the session and hurt your active pet's HP!"
             ),
-            color=0x5865F2 # Discord Blurple
+            color=0x5865F2,  # Discord Blurple
         )
         await interaction.response.send_message(embed=embed)
 
         # Launch background tracker task
-        self.bot.loop.create_task(self.pomodoro_tracker(user_id, duration, text_channel.id))
+        self.bot.loop.create_task(
+            self.pomodoro_tracker(user_id, duration, text_channel.id)
+        )
 
-    @app_commands.command(name="pomodoro-cancel", description="Cancel your active Pomodoro focus session")
+    @app_commands.command(
+        name="pomodoro-cancel", description="Cancel your active Pomodoro focus session"
+    )
     async def pomodoro_cancel(self, interaction: discord.Interaction):
         user_id = str(interaction.user.id)
-        success, msg = await self.pomodoro_service.cancel_session(user_id, penalize=True)
-        
+        success, msg = await self.pomodoro_service.cancel_session(
+            user_id, penalize=True
+        )
+
         if not success:
             embed = discord.Embed(description=f"❌ {msg}", color=0xED4245)
             await interaction.response.send_message(embed=embed, ephemeral=True)
             return
 
         embed = discord.Embed(
-            title="❌ Pomodoro Focus Cancelled",
-            description=msg,
-            color=0xED4245
+            title="❌ Pomodoro Focus Cancelled", description=msg, color=0xED4245
         )
         await interaction.response.send_message(embed=embed)
 
-    async def pomodoro_tracker(self, user_id: str, duration_mins: int, text_channel_id: int):
+    async def pomodoro_tracker(
+        self, user_id: str, duration_mins: int, text_channel_id: int
+    ):
         """Asynchronous tracker that waits for the duration and awards points if user is still focused."""
         await asyncio.sleep(duration_mins * 60)
-        
+
         session = await self.pomodoro_service.get_active_session(user_id)
         if not session:
             return  # Already cancelled/handled by state changes
@@ -127,7 +161,12 @@ class GachaCog(commands.Cog):
             if member:
                 break
 
-        if not member or not member.voice or not member.voice.channel or str(member.voice.channel.id) != session["channel_id"]:
+        if (
+            not member
+            or not member.voice
+            or not member.voice.channel
+            or str(member.voice.channel.id) != session["channel_id"]
+        ):
             # User left voice channel, cancel session
             await self.pomodoro_service.cancel_session(user_id, penalize=True)
             channel = self.bot.get_channel(text_channel_id)
@@ -135,7 +174,7 @@ class GachaCog(commands.Cog):
                 embed = discord.Embed(
                     title="❌ Focus Interrupted!",
                     description=f"<@{user_id}> left their voice channel before completion. Pomodoro cancelled!",
-                    color=0xED4245
+                    color=0xED4245,
                 )
                 await channel.send(embed=embed)
             return
@@ -148,13 +187,20 @@ class GachaCog(commands.Cog):
                 embed = discord.Embed(
                     title="🏆 Focus Session Completed!",
                     description=msg,
-                    color=0x57F287  # Emerald Green
+                    color=0x57F287,  # Emerald Green
                 )
-                embed.set_footer(text=f"Total: {data['focus_points']} FP | {data['focus_fruits']} Fruits")
+                embed.set_footer(
+                    text=f"Total: {data['focus_points']} FP | {data['focus_fruits']} Fruits"
+                )
                 await channel.send(content=f"<@{user_id}>", embed=embed)
 
     @commands.Cog.listener()
-    async def on_voice_state_update(self, member: discord.Member, before: discord.VoiceState, after: discord.VoiceState):
+    async def on_voice_state_update(
+        self,
+        member: discord.Member,
+        before: discord.VoiceState,
+        after: discord.VoiceState,
+    ):
         """Real-time voice activity listener to detect early disconnection."""
         if member.bot:
             return
@@ -167,11 +213,18 @@ class GachaCog(commands.Cog):
         # Check if the user left their voice channel
         target_voice_id = session["channel_id"]
         left_voice = before.channel is not None and after.channel is None
-        switched_voice = before.channel is not None and after.channel is not None and str(before.channel.id) == target_voice_id and str(after.channel.id) != target_voice_id
+        switched_voice = (
+            before.channel is not None
+            and after.channel is not None
+            and str(before.channel.id) == target_voice_id
+            and str(after.channel.id) != target_voice_id
+        )
 
         if left_voice or switched_voice:
             # Cancel session and apply HP penalty
-            success, msg = await self.pomodoro_service.cancel_session(user_id, penalize=True)
+            success, msg = await self.pomodoro_service.cancel_session(
+                user_id, penalize=True
+            )
             if success:
                 text_channel_id = int(session["text_channel_id"])
                 channel = self.bot.get_channel(text_channel_id)
@@ -179,21 +232,24 @@ class GachaCog(commands.Cog):
                     embed = discord.Embed(
                         title="❌ Focus Interrupted!",
                         description=f"{member.mention} left the voice channel. {msg}",
-                        color=0xED4245
+                        color=0xED4245,
                     )
                     await channel.send(content=member.mention, embed=embed)
 
-    @app_commands.command(name="gacha", description="Roll a procedural Pokemon companion (Costs 100 Focus Points)")
+    @app_commands.command(
+        name="gacha",
+        description="Roll a procedural Pokemon companion (Costs 100 Focus Points)",
+    )
     async def gacha(self, interaction: discord.Interaction):
         user_id = str(interaction.user.id)
-        
+
         # Verify currency first to save AI API call budget
         db = await self.bot.db_service.get_db()
         user_profile = await self.gacha_service.check_or_create_user(db, user_id)
         if user_profile["focus_points"] < 100:
             embed = discord.Embed(
                 description=f"❌ You do not have enough Focus Points! (You have: {user_profile['focus_points']} FP, need: 100 FP). Completing a Pomodoro grants 100 FP.",
-                color=0xED4245
+                color=0xED4245,
             )
             await interaction.response.send_message(embed=embed, ephemeral=True)
             return
@@ -203,59 +259,78 @@ class GachaCog(commands.Cog):
 
         try:
             # 1. Roll Gacha
-            pet_id, pet_dict, hd_bytes, pixel_bytes = await self.gacha_service.roll_gacha(user_id)
+            pet_id, pet_dict, hd_bytes, pixel_bytes = (
+                await self.gacha_service.roll_gacha(user_id)
+            )
 
             # 2. Upload images to Discord channel to host them
             image_channel = self.bot.get_channel(settings.GACHA_IMAGE_CHANNEL_ID)
             if not image_channel:
-                image_channel = await self.bot.fetch_channel(settings.GACHA_IMAGE_CHANNEL_ID)
+                image_channel = await self.bot.fetch_channel(
+                    settings.GACHA_IMAGE_CHANNEL_ID
+                )
 
-            hd_file = discord.File(io.BytesIO(hd_bytes), filename=f"pet_{pet_id}_hd.png")
-            pixel_file = discord.File(io.BytesIO(pixel_bytes), filename=f"pet_{pet_id}_pixel.png")
-            
+            pixel_file = discord.File(
+                io.BytesIO(pixel_bytes), filename=f"pet_{pet_id}_pixel.png"
+            )
+
             msg = await image_channel.send(
                 content=f"Assets for Pet ID {pet_id} owned by User {user_id}",
-                files=[hd_file, pixel_file]
+                file=pixel_file,
             )
 
             # Retrieve URLs
-            hd_url = msg.attachments[0].url
-            pixel_url = msg.attachments[1].url
+            pixel_url = msg.attachments[0].url
+            hd_url = pixel_url
 
             # 3. Update DB
-            await self.gacha_service.update_pet_image(pet_id, stage=1, hd_url=hd_url, pixel_url=pixel_url)
+            await self.gacha_service.update_pet_image(
+                pet_id, stage=1, hd_url=hd_url, pixel_url=pixel_url
+            )
 
             # 4. Show output
-            type_str = pet_dict['type1'] + (f" / {pet_dict['type2']}" if pet_dict['type2'] else "")
+            type_str = pet_dict["type1"] + (
+                f" / {pet_dict['type2']}" if pet_dict["type2"] else ""
+            )
+            rarity_name = pet_dict.get("rarity", "Common")
+            style = RARITY_STYLING.get(rarity_name, RARITY_STYLING["Common"])
+
             embed = discord.Embed(
-                title=f"🎲 Gacha: New Companion Discovered!",
+                title=style["title"],
                 description=(
                     f"**Name**: {pet_dict['name']}\n"
-                    f"**Rarity**: {pet_dict['rarity']}\n"
-                    f"**Types**: {type_str}\n"
-                    f"**Concept**: *{pet_dict['concept']}*\n\n"
+                    f"**Rarity**: {style['rarity_formatted']}\n"
+                    f"**Types**: {type_str}\n\n"
                     f"**Description**:\n{pet_dict['stage1_desc']}"
                 ),
-                color=0xFEE75C # Yellow
+                color=style["color"],
             )
             embed.set_image(url=pixel_url)
-            embed.set_footer(text=f"Pet ID: {pet_id} | Level 1 | HP: 100/100" + (" (Active Companion)" if pet_dict['active'] else ""))
+            embed.set_footer(
+                text=f"Pet ID: {pet_id} | Level 1 | HP: 100/100"
+                + (" (Active Companion)" if pet_dict["active"] else "")
+            )
 
             view = GachaHDView(hd_url)
             await interaction.followup.send(embed=embed, view=view)
 
         except Exception as e:
             logger.error(f"Gacha slash command failed: {e}", exc_info=True)
-            await interaction.followup.send("❌ Failed to roll gacha. Cloudflare AI encountered an error. Please try again.")
+            await interaction.followup.send(
+                "❌ Failed to roll gacha. Cloudflare AI encountered an error. Please try again."
+            )
 
-    @app_commands.command(name="pet-active", description="Show stats and image of your active Pokemon companion")
+    @app_commands.command(
+        name="pet-active",
+        description="Show stats and image of your active Pokemon companion",
+    )
     async def pet_active(self, interaction: discord.Interaction):
         user_id = str(interaction.user.id)
         pet = await self.gacha_service.get_active_pet(user_id)
         if not pet:
             embed = discord.Embed(
                 description="❌ You do not have an active pet. Use `/gacha` to roll a new companion!",
-                color=0xED4245
+                color=0xED4245,
             )
             await interaction.response.send_message(embed=embed)
             return
@@ -265,10 +340,10 @@ class GachaCog(commands.Cog):
         stage_name = pet[f"stage{stage}_name"] if stage <= 3 else pet["mega_name"]
         stage_desc = pet[f"stage{stage}_desc"] if stage <= 3 else pet["mega_desc"]
         stage_img = pet[f"stage{stage}_img"] if stage <= 3 else pet["mega_img"]
-        
+
         # If the image URL is not uploaded yet, we try to fall back or show description
-        type_str = pet['type1'] + (f" / {pet['type2']}" if pet['type2'] else "")
-        
+        type_str = pet["type1"] + (f" / {pet['type2']}" if pet["type2"] else "")
+
         embed = discord.Embed(
             title=f"🐾 Active Companion: {pet['name']}",
             description=(
@@ -278,26 +353,28 @@ class GachaCog(commands.Cog):
                 f"**Evolution**: Stage {stage} - **{stage_name}**\n\n"
                 f"**Description**:\n{stage_desc}"
             ),
-            color=0x57F287 # Emerald Green
+            color=0x57F287,  # Emerald Green
         )
         if stage_img:
             embed.set_image(url=stage_img)
-            
+
         embed.set_footer(text=f"Pet ID: {pet['id']} | Concept: {pet['concept']}")
-        
+
         # Look for HD URL to set view button
         # HD is the attachment of the message, but if we don't have it directly stored in DB, we can default or retrieve. Let's build a nice button if we have URLs.
         # Note: we stored pixelated image in stageX_img, HD image can be viewed via Discord attachments if needed, but since we didn't add extra columns for HD urls, we can use pixelated directly or log it. Let's make sure it operates neatly.
         await interaction.response.send_message(embed=embed)
 
-    @app_commands.command(name="pet-list", description="List all Pokemon companions in your collection")
+    @app_commands.command(
+        name="pet-list", description="List all Pokemon companions in your collection"
+    )
     async def pet_list(self, interaction: discord.Interaction):
         user_id = str(interaction.user.id)
         pets = await self.gacha_service.get_user_pets(user_id)
         if not pets:
             embed = discord.Embed(
                 description="❌ Your inventory is empty. Complete Pomodoro focus blocks to earn FP, then use `/gacha`!",
-                color=0xED4245
+                color=0xED4245,
             )
             await interaction.response.send_message(embed=embed)
             return
@@ -308,34 +385,39 @@ class GachaCog(commands.Cog):
 
         embed = discord.Embed(
             title=f"🎒 collection: {interaction.user.display_name}'s Companions",
-            color=0x5865F2
+            color=0x5865F2,
         )
-        
+
         lines = []
         for p in pets:
-            active_marker = "⭐ [Active] " if p['id'] == active_id else ""
-            type_str = p['type1'] + (f"/{p['type2']}" if p['type2'] else "")
+            active_marker = "⭐ [Active] " if p["id"] == active_id else ""
+            type_str = p["type1"] + (f"/{p['type2']}" if p["type2"] else "")
             lines.append(
                 f"- {active_marker}**ID {p['id']}**: {p['name']} (Lv.{p['level']} - Stage {p['stage']} - {p['rarity']} - {type_str}) - HP: {p['hp']}/100"
             )
-            
+
         embed.description = "\n".join(lines)
-        embed.set_footer(text=f"Total: {len(pets)} pets | Focus Fruits: {user_profile['focus_fruits']} | FP: {user_profile['focus_points']}")
-        
+        embed.set_footer(
+            text=f"Total: {len(pets)} pets | Focus Fruits: {user_profile['focus_fruits']} | FP: {user_profile['focus_points']}"
+        )
+
         # Display dropdown selector to set active companion
         view = PetListView(pets, self)
         await interaction.response.send_message(embed=embed, view=view)
 
-    @app_commands.command(name="feed", description="Feed a Focus Fruit to your active Pokemon companion (+XP, +HP, trigger evolutions)")
+    @app_commands.command(
+        name="feed",
+        description="Feed a Focus Fruit to your active Pokemon companion (+XP, +HP, trigger evolutions)",
+    )
     async def feed(self, interaction: discord.Interaction):
         user_id = str(interaction.user.id)
-        
+
         # Fetch current pet and state before feeding
         pet_before = await self.gacha_service.get_active_pet(user_id)
         if not pet_before:
             embed = discord.Embed(
                 description="❌ You do not have an active pet. Use `/gacha` to roll a new companion!",
-                color=0xED4245
+                color=0xED4245,
             )
             await interaction.response.send_message(embed=embed)
             return
@@ -353,7 +435,7 @@ class GachaCog(commands.Cog):
             await interaction.response.defer()
             try:
                 new_stage = updated_pet["stage"]
-                
+
                 # Fetch prompt for this stage
                 if new_stage == 2:
                     prompt = updated_pet["stage2_prompt"]
@@ -362,41 +444,63 @@ class GachaCog(commands.Cog):
                 else:
                     prompt = updated_pet["mega_prompt"]
 
-                # Generate and process image
-                pet_types = [updated_pet["type1"]] + ([updated_pet["type2"]] if updated_pet["type2"] else [])
-                hd_bytes = await self.gacha_service.call_cloudflare_image_gen(prompt, pet_types)
-                pixel_bytes = self.gacha_service.make_pixel_art(hd_bytes)
+                prev_img_url = (
+                    updated_pet[f"stage{new_stage - 1}_img"]
+                    if new_stage <= 3
+                    else updated_pet["stage3_img"]
+                )
+                pixel_bytes = await self.gacha_service.generate_evolution_image(
+                    prompt, prev_img_url
+                )
+                hd_bytes = pixel_bytes
 
                 # Upload to Discord Image channel
                 image_channel = self.bot.get_channel(settings.GACHA_IMAGE_CHANNEL_ID)
                 if not image_channel:
-                    image_channel = await self.bot.fetch_channel(settings.GACHA_IMAGE_CHANNEL_ID)
+                    image_channel = await self.bot.fetch_channel(
+                        settings.GACHA_IMAGE_CHANNEL_ID
+                    )
 
-                hd_file = discord.File(io.BytesIO(hd_bytes), filename=f"pet_{updated_pet['id']}_s{new_stage}_hd.png")
-                pixel_file = discord.File(io.BytesIO(pixel_bytes), filename=f"pet_{updated_pet['id']}_s{new_stage}_pixel.png")
-                
+                pixel_file = discord.File(
+                    io.BytesIO(pixel_bytes),
+                    filename=f"pet_{updated_pet['id']}_s{new_stage}_pixel.png",
+                )
+
                 upload_msg = await image_channel.send(
                     content=f"Evolved Asset for Pet ID {updated_pet['id']} Stage {new_stage}",
-                    files=[hd_file, pixel_file]
+                    file=pixel_file,
                 )
-                
-                hd_url = upload_msg.attachments[0].url
-                pixel_url = upload_msg.attachments[1].url
+
+                pixel_url = upload_msg.attachments[0].url
+                hd_url = pixel_url
 
                 # Save URLs in DB
-                await self.gacha_service.update_pet_image(updated_pet["id"], stage=new_stage, hd_url=hd_url, pixel_url=pixel_url)
-                
+                await self.gacha_service.update_pet_image(
+                    updated_pet["id"],
+                    stage=new_stage,
+                    hd_url=hd_url,
+                    pixel_url=pixel_url,
+                )
+
                 # Refresh updated pet dictionary
                 updated_pet = await self.gacha_service.get_active_pet(user_id)
 
             except Exception as e:
-                logger.error(f"Image generation failed for evolution: {e}", exc_info=True)
+                logger.error(
+                    f"Image generation failed for evolution: {e}", exc_info=True
+                )
                 msg += f"\n⚠️ Image generation failed for this evolution stage: {e}"
 
         # Display final response
-        type_str = updated_pet['type1'] + (f" / {updated_pet['type2']}" if updated_pet['type2'] else "")
-        stage_name = updated_pet[f"stage{updated_pet['stage']}_name"] if updated_pet['stage'] <= 3 else updated_pet["mega_name"]
-        
+        type_str = updated_pet["type1"] + (
+            f" / {updated_pet['type2']}" if updated_pet["type2"] else ""
+        )
+        stage_name = (
+            updated_pet[f"stage{updated_pet['stage']}_name"]
+            if updated_pet["stage"] <= 3
+            else updated_pet["mega_name"]
+        )
+
         embed = discord.Embed(
             title=f"🍎 Feeding Time: {updated_pet['name']}",
             description=(
@@ -405,11 +509,19 @@ class GachaCog(commands.Cog):
                 f"**HP**: {updated_pet['hp']}/100\n"
                 f"**Form**: Stage {updated_pet['stage']} - **{stage_name}**"
             ),
-            color=0x57F287
+            color=0x57F287,
         )
-        
-        img_url = updated_pet[f"stage{updated_pet['stage']}_img"] if updated_pet['stage'] <= 3 else updated_pet["mega_img"]
+
+        img_url = (
+            updated_pet[f"stage{updated_pet['stage']}_img"]
+            if updated_pet["stage"] <= 3
+            else updated_pet["mega_img"]
+        )
         if img_url:
             embed.set_image(url=img_url)
 
-        await interaction.followup.send(embed=embed) if interaction.is_expired() or interaction.response.is_done() else await interaction.response.send_message(embed=embed)
+        (
+            await interaction.followup.send(embed=embed)
+            if interaction.is_expired() or interaction.response.is_done()
+            else await interaction.response.send_message(embed=embed)
+        )

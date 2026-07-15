@@ -9,62 +9,283 @@ from google.genai import types
 from app.core.config import settings
 from app.core.logger import get_logger
 from app.services.database import DatabaseService
+from app.services.pixellab import PixelLabService
 
 logger = get_logger(__name__)
 
 TYPES = [
-    "Fire", "Water", "Grass", "Electric", "Steel", "Dark", 
-    "Psychic", "Dragon", "Ice", "Ground", "Flying", "Ghost", 
-    "Fairy", "Poison", "Rock", "Bug", "Normal", "Fighting"
+    "Fire",
+    "Water",
+    "Grass",
+    "Electric",
+    "Steel",
+    "Dark",
+    "Psychic",
+    "Dragon",
+    "Ice",
+    "Ground",
+    "Flying",
+    "Ghost",
+    "Fairy",
+    "Poison",
+    "Rock",
+    "Bug",
+    "Normal",
+    "Fighting",
 ]
+
+RARITY_STYLING = {
+    "Common": {
+        "title": "🎲 Gacha: New Companion Discovered!",
+        "rarity_formatted": "⚪ **Common**",
+        "color": 0x979C9F,  # Grey
+    },
+    "Rare": {
+        "title": "✨ Gacha: Rare Companion Discovered! ✨",
+        "rarity_formatted": "💎 ✨ **Rare** ✨ 💎",
+        "color": 0x3498DB,  # Blue
+    },
+    "Legendary": {
+        "title": "👑 Gacha: LEGENDARY Companion Discovered! 👑",
+        "rarity_formatted": "🔥 🌟 **LEGENDARY** 🌟 🔥",
+        "color": 0xF1C40F,  # Gold/Yellow
+    },
+}
+
 
 CONCEPTS = {
     "Object": [
-        "Book", "Pen", "Ring", "Mirror", "Lamp", "Candle", "Sword", "Shield", "Crown", "Coin",
-        "Potion", "Map", "Letter", "Chest", "Box", "Bottle", "Cup", "Feather", "Mask", "Clock",
-        "Bell", "Flute", "Harp", "Necklace", "Bracelet", "Dagger", "Bow", "Arrow", "Staff", "Wand",
-        "Telescope", "Globe", "Lantern", "Hammer", "Anvil", "Gear", "Dice", "Card", "Doll", "Fan",
-        "Umbrella", "Pipe", "Quill", "Scroll", "Inkwell", "Goblet", "Amulet", "Keyring", "Teapot", "Tome"
+        "Book",
+        "Pen",
+        "Ring",
+        "Mirror",
+        "Lamp",
+        "Candle",
+        "Sword",
+        "Shield",
+        "Crown",
+        "Coin",
+        "Potion",
+        "Map",
+        "Letter",
+        "Chest",
+        "Box",
+        "Bottle",
+        "Cup",
+        "Feather",
+        "Mask",
+        "Clock",
+        "Bell",
+        "Flute",
+        "Harp",
+        "Necklace",
+        "Bracelet",
+        "Dagger",
+        "Bow",
+        "Arrow",
+        "Staff",
+        "Wand",
+        "Telescope",
+        "Globe",
+        "Lantern",
+        "Hammer",
+        "Anvil",
+        "Gear",
+        "Dice",
+        "Card",
+        "Doll",
+        "Fan",
+        "Umbrella",
+        "Pipe",
+        "Quill",
+        "Scroll",
+        "Inkwell",
+        "Goblet",
+        "Amulet",
+        "Keyring",
+        "Teapot",
+        "Tome",
     ],
     "Animal": [
-        "Cat", "Dog", "Wolf", "Fox", "Bear", "Deer", "Rabbit", "Owl", "Eagle", "Hawk",
-        "Raven", "Crow", "Swan", "Duck", "Frog", "Toad", "Snake", "Lizard", "Turtle", "Fish",
-        "Shark", "Whale", "Dolphin", "Octopus", "Crab", "Tiger", "Lion", "Leopard", "Cheetah", "Elephant",
-        "Giraffe", "Zebra", "Horse", "Donkey", "Cow", "Sheep", "Goat", "Pig", "Monkey", "Gorilla",
-        "Mouse", "Rat", "Bat", "Otter", "Seal", "Walrus", "Penguin", "Koala", "Kangaroo", "Sloth"
+        "Cat",
+        "Dog",
+        "Wolf",
+        "Fox",
+        "Bear",
+        "Deer",
+        "Rabbit",
+        "Owl",
+        "Eagle",
+        "Hawk",
+        "Raven",
+        "Crow",
+        "Swan",
+        "Duck",
+        "Frog",
+        "Toad",
+        "Snake",
+        "Lizard",
+        "Turtle",
+        "Fish",
+        "Shark",
+        "Whale",
+        "Dolphin",
+        "Octopus",
+        "Crab",
+        "Tiger",
+        "Lion",
+        "Leopard",
+        "Cheetah",
+        "Elephant",
+        "Giraffe",
+        "Zebra",
+        "Horse",
+        "Donkey",
+        "Cow",
+        "Sheep",
+        "Goat",
+        "Pig",
+        "Monkey",
+        "Gorilla",
+        "Mouse",
+        "Rat",
+        "Bat",
+        "Otter",
+        "Seal",
+        "Walrus",
+        "Penguin",
+        "Koala",
+        "Kangaroo",
+        "Sloth",
     ],
     "Mythical": [
-        "Griffin", "Centaur", "Minotaur", "Mermaid", "Merman", "Unicorn", "Alicorn", "Cerberus", "Hydra", "Gorgon",
-        "Medusa", "Cyclops", "Titan", "Nymph", "Dryad", "Pixie", "Sprite", "Fairy", "Elf", "Dwarf",
-        "Goblin", "Orc", "Troll", "Ogre", "Golem", "Gargoyle", "Vampire", "Werewolf", "Zombie", "Ghost",
-        "Specter", "Wraith", "Banshee", "Siren", "Harpy", "Manticore", "Kraken", "Leviathan", "Behemoth", "Thunderbird",
-        "Wyvern", "Drake", "Basilisk", "Cockatrice", "Leprechaun", "Gnome", "Satyr", "Faun", "Yeti", "Bigfoot"
+        "Griffin",
+        "Centaur",
+        "Minotaur",
+        "Mermaid",
+        "Merman",
+        "Unicorn",
+        "Alicorn",
+        "Cerberus",
+        "Hydra",
+        "Gorgon",
+        "Medusa",
+        "Cyclops",
+        "Titan",
+        "Nymph",
+        "Dryad",
+        "Pixie",
+        "Sprite",
+        "Fairy",
+        "Elf",
+        "Dwarf",
+        "Goblin",
+        "Orc",
+        "Troll",
+        "Ogre",
+        "Golem",
+        "Gargoyle",
+        "Vampire",
+        "Werewolf",
+        "Zombie",
+        "Ghost",
+        "Specter",
+        "Wraith",
+        "Banshee",
+        "Siren",
+        "Harpy",
+        "Manticore",
+        "Kraken",
+        "Leviathan",
+        "Behemoth",
+        "Thunderbird",
+        "Wyvern",
+        "Drake",
+        "Basilisk",
+        "Cockatrice",
+        "Leprechaun",
+        "Gnome",
+        "Satyr",
+        "Faun",
+        "Yeti",
+        "Bigfoot",
     ],
     "Phenomenon": [
-        "Rain", "Snow", "Hail", "Fog", "Mist", "Wind", "Gale", "Storm", "Lightning", "Thunder",
-        "Rainbow", "Heatwave", "Blizzard", "Hurricane", "Typhoon", "Cyclone", "Flood", "Drought", "Earthquake", "Tsunami",
-        "Avalanche", "Landslide", "Wildfire", "Meteor", "Comet", "Asteroid", "Flare", "Supernova", "Nebula", "Galaxy",
-        "Orbit", "Gravity", "Tide", "Current", "Frost", "Dew", "Mirage", "Echo", "Shadow", "Reflection",
-        "Rust", "Decay", "Growth", "Erosion", "Sedimentation", "Evaporation", "Condensation", "Freezing", "Melting", "Combustion"
-    ]
+        "Rain",
+        "Snow",
+        "Hail",
+        "Fog",
+        "Mist",
+        "Wind",
+        "Gale",
+        "Storm",
+        "Lightning",
+        "Thunder",
+        "Rainbow",
+        "Heatwave",
+        "Blizzard",
+        "Hurricane",
+        "Typhoon",
+        "Cyclone",
+        "Flood",
+        "Drought",
+        "Earthquake",
+        "Tsunami",
+        "Avalanche",
+        "Landslide",
+        "Wildfire",
+        "Meteor",
+        "Comet",
+        "Asteroid",
+        "Flare",
+        "Supernova",
+        "Nebula",
+        "Galaxy",
+        "Orbit",
+        "Gravity",
+        "Tide",
+        "Current",
+        "Frost",
+        "Dew",
+        "Mirage",
+        "Echo",
+        "Shadow",
+        "Reflection",
+        "Rust",
+        "Decay",
+        "Growth",
+        "Erosion",
+        "Sedimentation",
+        "Evaporation",
+        "Condensation",
+        "Freezing",
+        "Melting",
+        "Combustion",
+    ],
 }
 
+
 class GachaService:
-    def __init__(self, db_service: DatabaseService):
+    def __init__(self, db_service: DatabaseService, pixellab_service: PixelLabService):
         self.db_service = db_service
+        self.pixellab_service = pixellab_service
         if not settings.GEMINI_API_KEY:
-            logger.warning("GEMINI_API_KEY is not configured in .env. Gemini Gacha LLM may not work.")
+            logger.warning(
+                "GEMINI_API_KEY is not configured in .env. Gemini Gacha LLM may not work."
+            )
         self.gemini_client = genai.Client(api_key=settings.GEMINI_API_KEY or None)
 
     async def check_or_create_user(self, db, discord_id: str) -> Dict[str, Any]:
         """Check if user exists; if not, create them with starting currency (200 FP, 2 Fruits)."""
-        async with db.execute("SELECT * FROM users WHERE discord_id = ?", (discord_id,)) as cursor:
+        async with db.execute(
+            "SELECT * FROM users WHERE discord_id = ?", (discord_id,)
+        ) as cursor:
             user = await cursor.fetchone()
-            
+
         if not user:
             await db.execute(
                 "INSERT INTO users (discord_id, focus_points, focus_fruits) VALUES (?, ?, ?)",
-                (discord_id, 200, 2)
+                (discord_id, 200, 2),
             )
             await db.commit()
             logger.info(f"Created new user in DB: {discord_id} with 200 FP, 2 Fruits.")
@@ -72,14 +293,14 @@ class GachaService:
                 "discord_id": discord_id,
                 "focus_points": 200,
                 "focus_fruits": 2,
-                "active_pet_id": None
+                "active_pet_id": None,
             }
-            
+
         return {
             "discord_id": user[0],
             "focus_points": user[1],
             "focus_fruits": user[2],
-            "active_pet_id": user[3]
+            "active_pet_id": user[3],
         }
 
     def _roll_attributes(self) -> Dict[str, Any]:
@@ -91,10 +312,9 @@ class GachaService:
         type2 = selected_types[1] if num_types == 2 else None
 
         # 2. Roll rarity
-        rarity = random.choices(
-            ["Common", "Rare", "Legendary"], 
-            weights=[70, 20, 10]
-        )[0]
+        rarity = random.choices(["Common", "Rare", "Legendary"], weights=[70, 20, 10])[
+            0
+        ]
 
         # 3. Roll concept
         concept_category = random.choice(list(CONCEPTS.keys()))
@@ -108,18 +328,17 @@ class GachaService:
             "type1": type1,
             "type2": type2,
             "concept": concept,
-            "mega_capable": mega_capable
+            "mega_capable": mega_capable,
         }
 
     async def _call_gemini_llm(self, attrs: Dict[str, Any]) -> Dict[str, Any]:
         """Call Gemini to design the creature stages using structured output schema."""
         from app.domain.models.gacha import GachaPetDesign
-        
+
         system_prompt = (
             "You are a world-class pocket monster designer with a deep sense of creativity and narrative. "
             "Your task is to design a fully original fictional monster species with 3 evolution stages (plus an optional Mega stage), "
             "inspired by the provided concept, types, and rarity.\n\n"
-
             "## Design Philosophy\n"
             "- The creature must feel fresh and original — avoid directly copying existing Pokémon designs.\n"
             "- The concept (e.g. 'Clock', 'Rain', 'Griffin') should be deeply reflected in the creature's biology, silhouette, and aesthetic.\n"
@@ -129,7 +348,6 @@ class GachaService:
             "  • Legendary → jaw-dropping, mythic silhouette, radiates power; complex layered anatomy.\n"
             "- Evolution stages must feel like a coherent progression (same species, growing more powerful and complex).\n"
             "- Each stage should have a distinct, memorable silhouette.\n\n"
-
             "## Type Integration\n"
             "- Elemental types must influence the color palette and visual motifs:\n"
             "  Fire → warm reds/oranges, ember glow, flame textures\n"
@@ -137,16 +355,13 @@ class GachaService:
             "  Electric → bright yellow/white, jagged shapes, crackling aura\n"
             "  (and so on for other types)\n"
             "- If dual-typed, blend both type aesthetics in a balanced, intentional way.\n\n"
-
             "## Naming Rules\n"
             "- Species name (base 'name') must be short, punchy, and memorable (1–2 syllables preferred).\n"
             "- Each stage's name should reflect progression (e.g. Ignub → Ignachar → Volcaron).\n"
             "- Mega form names should add 'Mega' prefix or a dramatic suffix.\n\n"
-
             "## Description Rules\n"
             "- Descriptions should be flavourful, lore-rich, and ~2 sentences long.\n"
             "- Evoke a sense of personality and world-building.\n\n"
-
             "## Visual Prompt Rules (CRITICAL)\n"
             "- In 'visual_prompt', describe ONLY the creature itself — body shape, limb count, proportions, textures, colors, eyes, markings, and any elemental effects on its body.\n"
             "- DO NOT mention any background, environment, ground, sky, weather, shadow, or surrounding objects.\n"
@@ -159,7 +374,7 @@ class GachaService:
             "rarity": attrs["rarity"],
             "types": [attrs["type1"]] + ([attrs["type2"]] if attrs["type2"] else []),
             "concept": attrs["concept"],
-            "mega_capable": bool(attrs["mega_capable"])
+            "mega_capable": bool(attrs["mega_capable"]),
         }
 
         try:
@@ -171,26 +386,31 @@ class GachaService:
                     system_instruction=system_prompt,
                     response_mime_type="application/json",
                     response_schema=GachaPetDesign,
-                    temperature=0.7
-                )
+                    temperature=0.7,
+                ),
             )
-            
+
             parsed_data = json.loads(response.text)
             return parsed_data
         except Exception as e:
             logger.error(f"Gemini Gacha LLM generation failed: {e}", exc_info=True)
             raise e
 
-    async def call_cloudflare_image_gen(self, visual_prompt: str, types_list: Optional[list[str]] = None) -> bytes:
-        """Call Cloudflare Workers AI to generate an image.
-        
-        Dispatches to the configured Cloudflare Workers AI image generation model (e.g. google/imagen-4).
-        """
-        return await self.call_cloudflare_imagen4(visual_prompt)
+    async def call_cloudflare_image_gen(
+        self, visual_prompt: str, types_list: Optional[list[str]] = None
+    ) -> bytes:
+        """Call PixelLab Service to generate a pixel art image."""
+        return await self.pixellab_service.generate_pixel_art(
+            prompt=visual_prompt,
+            model="pixflux",
+            width=256,
+            height=256,
+            transparent=True,
+        )
 
     async def call_cloudflare_imagen4(self, visual_prompt: str) -> bytes:
         """Call Cloudflare Workers AI using Google's Imagen 4 model.
-        
+
         Generates a 1:1 image. The model is prompted to render the creature
         on a pure white background so the flood-fill removal step produces
         clean alpha masks.
@@ -199,7 +419,7 @@ class GachaService:
         url = f"https://api.cloudflare.com/client/v4/accounts/{settings.CLOUDFLARE_ACCOUNT_ID}/ai/run"
         headers = {
             "Authorization": f"Bearer {settings.CLOUDFLARE_API_TOKEN}",
-            "Content-Type": "application/json"
+            "Content-Type": "application/json",
         }
 
         master_suffix = (
@@ -215,62 +435,66 @@ class GachaService:
 
         payload = {
             "model": settings.CLOUDFLARE_IMAGE_MODEL,
-            "input": {
-                "prompt": final_prompt,
-                "aspect_ratio": "1:1"
-            }
+            "input": {"prompt": final_prompt, "aspect_ratio": "1:1"},
         }
 
-        logger.info(f"Calling Cloudflare {settings.CLOUDFLARE_IMAGE_MODEL} for image generation.")
+        logger.info(
+            f"Calling Cloudflare {settings.CLOUDFLARE_IMAGE_MODEL} for image generation."
+        )
         async with httpx.AsyncClient(timeout=120.0) as client:
             response = await client.post(url, headers=headers, json=payload)
             if response.status_code != 200:
-                raise Exception(f"Cloudflare Imagen-4 API error ({response.status_code}): {response.text}")
+                raise Exception(
+                    f"Cloudflare Imagen-4 API error ({response.status_code}): {response.text}"
+                )
             result = response.json()
             image_url = result.get("result", {}).get("image", "")
             if not image_url:
-                raise Exception(f"Failed to find image URL in Imagen-4 response: {result}")
+                raise Exception(
+                    f"Failed to find image URL in Imagen-4 response: {result}"
+                )
 
             # Download the image from the returned URL
             logger.info(f"Imagen-4 returned image URL: {image_url} — downloading...")
             img_response = await client.get(image_url, timeout=60.0)
             if img_response.status_code != 200:
-                raise Exception(f"Failed to download Imagen-4 image ({img_response.status_code}): {img_response.text}")
+                raise Exception(
+                    f"Failed to download Imagen-4 image ({img_response.status_code}): {img_response.text}"
+                )
             return img_response.content
-
 
     def _remove_background(self, img: Image.Image, tolerance: int = 25) -> Image.Image:
         """Automatically detect solid background from corners and make it transparent."""
         img = img.convert("RGBA")
         width, height = img.size
         pixels = img.load()
-        
+
         visited = set()
         queue = []
-        
+
         # Start flood fill from the 4 corners
         corners = [(0, 0), (width - 1, 0), (0, height - 1), (width - 1, height - 1)]
-        
+
         for c in corners:
             if c in visited:
                 continue
             target_color = pixels[c]
             queue.append(c)
             visited.add(c)
-            
+
             while queue:
                 x, y = queue.pop(0)
-                
+
                 # Make background pixel transparent
                 r, g, b, a = pixels[x, y]
                 pixels[x, y] = (r, g, b, 0)
-                
+
                 for dx, dy in [(-1, 0), (1, 0), (0, -1), (0, 1)]:
                     nx, ny = x + dx, y + dy
                     if 0 <= nx < width and 0 <= ny < height and (nx, ny) not in visited:
                         nr, ng, nb, na = pixels[nx, ny]
                         tr, tg, tb, ta = target_color
-                        
+
                         dist = ((nr - tr) ** 2 + (ng - tg) ** 2 + (nb - tb) ** 2) ** 0.5
                         if dist <= tolerance:
                             visited.add((nx, ny))
@@ -278,56 +502,44 @@ class GachaService:
         return img
 
     def make_pixel_art(self, image_bytes: bytes) -> bytes:
-        """Convert image to 64x64 pixel art using Pyxelate (naive dither) + bold outline."""
-        import numpy as np
-        from PIL import ImageFilter
-        from pyxelate import Pyx
-        
-        img = Image.open(io.BytesIO(image_bytes)).convert("RGBA")
+        """Return the original image bytes unmodified, bypassing low resolution conversion."""
+        return image_bytes
 
-        # 1. Background removal before passing to pyxelate
-        img = self._remove_background(img, tolerance=25)
+    async def generate_evolution_image(
+        self, prompt: str, prev_img_url: Optional[str]
+    ) -> bytes:
+        """
+        Generate an evolved stage image using PixelLab.
+        Uses the previous stage's image URL as init_image reference if provided.
+        """
+        init_image_bytes = None
+        if prev_img_url:
+            try:
+                async with httpx.AsyncClient(timeout=10.0) as http_client:
+                    resp = await http_client.get(prev_img_url)
+                    if resp.status_code == 200:
+                        init_image_bytes = resp.content
+                        logger.info(
+                            f"Successfully downloaded previous stage image for evolution: {len(init_image_bytes)} bytes"
+                        )
+            except Exception as e:
+                logger.error(f"Failed to fetch previous stage image: {e}")
 
-        # 2. Convert to numpy array for pyxelate
-        img_array = np.array(img)  # shape: (H, W, 4) uint8
-
-        # 3. Run pyxelate: factor=16 → 1024/16=64px; palette=16 colors; naive dither (best for RGBA)
-        pyx = Pyx(
-            factor=16,
-            palette=16,
-            dither="naive",
-            sobel=3,    # edge detection to preserve outlines
-            svd=True,   # SVD for more accurate color quantization
-            upscale=1,
+        # Call PixelLab Service to generate image
+        pixel_bytes = await self.pixellab_service.generate_pixel_art(
+            prompt=prompt,
+            model="pixflux",
+            width=128,
+            height=128,
+            transparent=True,
+            init_image=init_image_bytes,
+            init_image_strength=300,
         )
-        pyx.fit(img_array)
-        result_array = pyx.transform(img_array)  # (64, 64, 4) uint8
+        return pixel_bytes
 
-        if result_array.dtype != np.uint8:
-            result_array = (result_array * 255).clip(0, 255).astype(np.uint8)
-
-        img_pixel = Image.fromarray(result_array, mode="RGBA")
-
-        # 4. Post-process: draw a bold 1px black outline around the character silhouette
-        alpha = img_pixel.split()[3]
-        dilated_alpha = alpha.filter(ImageFilter.MaxFilter(3))
-
-        outline_layer = Image.new("RGBA", (64, 64), (0, 0, 0, 0))
-        outline_pixels = outline_layer.load()
-        dilated_pixels = dilated_alpha.load()
-        for y in range(64):
-            for x in range(64):
-                if dilated_pixels[x, y] > 0:
-                    outline_pixels[x, y] = (0, 0, 0, 255)
-
-        result = Image.alpha_composite(outline_layer, img_pixel)
-
-        # Save back to bytes
-        output_buffer = io.BytesIO()
-        result.save(output_buffer, format="PNG")
-        return output_buffer.getvalue()
-
-    async def roll_gacha(self, discord_id: str) -> Tuple[int, Dict[str, Any], bytes, bytes]:
+    async def roll_gacha(
+        self, discord_id: str
+    ) -> Tuple[int, Dict[str, Any], bytes, bytes]:
         """
         Deduct FP, roll attributes, call LLM to generate descriptions,
         call Image Gen for Stage 1, resize to pixel art, and save pet in DB.
@@ -343,7 +555,7 @@ class GachaService:
             # Deduct FP
             await db.execute(
                 "UPDATE users SET focus_points = focus_points - 100 WHERE discord_id = ?",
-                (discord_id,)
+                (discord_id,),
             )
 
             # 2. Roll random attributes
@@ -351,33 +563,37 @@ class GachaService:
 
             # 3. Call LLM to generate description JSON
             design = await self._call_gemini_llm(attrs)
-            
+
             # 4. Generate Stage 1 Image
             stage1_prompt = design["stage1"]["visual_prompt"]
-            pet_types = [attrs["type1"]] + ([attrs["type2"]] if attrs["type2"] else [])
-            hd_bytes = await self.call_cloudflare_image_gen(stage1_prompt, pet_types)
-            
-            # 5. Convert to 64x64 Pixel Art
-            pixel_bytes = self.make_pixel_art(hd_bytes)
+            pixel_bytes = await self.pixellab_service.generate_pixel_art(
+                prompt=stage1_prompt,
+                model="pixflux",
+                width=128,
+                height=128,
+                transparent=True,
+            )
+            hd_bytes = pixel_bytes
 
             # 6. Save pet to database
             stage1_name = design["stage1"]["name"]
             stage1_desc = design["stage1"]["description"]
-            
+
             stage2_name = design["stage2"]["name"]
             stage2_desc = design["stage2"]["description"]
             stage2_prompt = design["stage2"]["visual_prompt"]
-            
+
             stage3_name = design["stage3"]["name"]
             stage3_desc = design["stage3"]["description"]
             stage3_prompt = design["stage3"]["visual_prompt"]
-            
+
             mega = design.get("mega") or {}
             mega_name = mega.get("name")
             mega_desc = mega.get("description")
             mega_prompt = mega.get("visual_prompt")
 
-            cursor = await db.execute("""
+            cursor = await db.execute(
+                """
                 INSERT INTO pets (
                     user_id, name, rarity, type1, type2, level, exp, hp, stage, concept, mega_capable,
                     stage1_name, stage1_desc, stage1_prompt,
@@ -385,23 +601,39 @@ class GachaService:
                     stage3_name, stage3_desc, stage3_prompt,
                     mega_name, mega_desc, mega_prompt
                 ) VALUES (?, ?, ?, ?, ?, 1, 0, 100, 1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """, (
-                discord_id, design["name"], attrs["rarity"], attrs["type1"], attrs["type2"], attrs["concept"], attrs["mega_capable"],
-                stage1_name, stage1_desc, stage1_prompt,
-                stage2_name, stage2_desc, stage2_prompt,
-                stage3_name, stage3_desc, stage3_prompt,
-                mega_name, mega_desc, mega_prompt
-            ))
-            
+            """,
+                (
+                    discord_id,
+                    design["name"],
+                    attrs["rarity"],
+                    attrs["type1"],
+                    attrs["type2"],
+                    attrs["concept"],
+                    attrs["mega_capable"],
+                    stage1_name,
+                    stage1_desc,
+                    stage1_prompt,
+                    stage2_name,
+                    stage2_desc,
+                    stage2_prompt,
+                    stage3_name,
+                    stage3_desc,
+                    stage3_prompt,
+                    mega_name,
+                    mega_desc,
+                    mega_prompt,
+                ),
+            )
+
             pet_id = cursor.lastrowid
-            
+
             # Automatically set active pet if the user does not have one
             if user["active_pet_id"] is None:
                 await db.execute(
                     "UPDATE users SET active_pet_id = ? WHERE discord_id = ?",
-                    (pet_id, discord_id)
+                    (pet_id, discord_id),
                 )
-                
+
             await db.commit()
 
             # Retrieve final stored details
@@ -419,75 +651,105 @@ class GachaService:
                 "mega_capable": bool(attrs["mega_capable"]),
                 "stage1_name": stage1_name,
                 "stage1_desc": stage1_desc,
-                "active": (user["active_pet_id"] is None or user["active_pet_id"] == pet_id)
+                "active": (
+                    user["active_pet_id"] is None or user["active_pet_id"] == pet_id
+                ),
             }
 
-            logger.info(f"User {discord_id} rolled new pet: {design['name']} (ID: {pet_id})")
+            logger.info(
+                f"User {discord_id} rolled new pet: {design['name']} (ID: {pet_id})"
+            )
             return pet_id, pet_dict, hd_bytes, pixel_bytes
-            
+
         except Exception as e:
             await db.rollback()
             logger.error(f"Gacha roll failed: {e}", exc_info=True)
             raise e
 
-    async def update_pet_image(self, pet_id: int, stage: int, hd_url: str, pixel_url: str) -> None:
+    async def update_pet_image(
+        self, pet_id: int, stage: int, hd_url: str, pixel_url: str
+    ) -> None:
         """Update database with generated image URLs for a specific evolution stage."""
         db = await self.db_service.get_db()
         if stage == 1:
-            await db.execute("UPDATE pets SET stage1_img = ? WHERE id = ?", (pixel_url, pet_id)) # We use the pixel URL as default, can keep HD in stage description
+            await db.execute(
+                "UPDATE pets SET stage1_img = ? WHERE id = ?", (pixel_url, pet_id)
+            )  # We use the pixel URL as default, can keep HD in stage description
         elif stage == 2:
-            await db.execute("UPDATE pets SET stage2_img = ? WHERE id = ?", (pixel_url, pet_id))
+            await db.execute(
+                "UPDATE pets SET stage2_img = ? WHERE id = ?", (pixel_url, pet_id)
+            )
         elif stage == 3:
-            await db.execute("UPDATE pets SET stage3_img = ? WHERE id = ?", (pixel_url, pet_id))
+            await db.execute(
+                "UPDATE pets SET stage3_img = ? WHERE id = ?", (pixel_url, pet_id)
+            )
         elif stage == 4:
-            await db.execute("UPDATE pets SET mega_img = ? WHERE id = ?", (pixel_url, pet_id))
-            
+            await db.execute(
+                "UPDATE pets SET mega_img = ? WHERE id = ?", (pixel_url, pet_id)
+            )
+
         # Store HD image in an extra lookup or logging channel if needed, or we just store pixel URL in standard. Let's store both in separate metadata fields if we want, but keeping it simple: stageX_img stores the pixelated image to display in Discord chat.
         await db.commit()
 
     async def get_active_pet(self, discord_id: str) -> Optional[Dict[str, Any]]:
         """Retrieve active pet details for a user."""
         db = await self.db_service.get_db()
-        async with db.execute("""
+        async with db.execute(
+            """
             SELECT u.active_pet_id, p.* 
             FROM users u 
             JOIN pets p ON u.active_pet_id = p.id 
             WHERE u.discord_id = ?
-        """, (discord_id,)) as cursor:
+        """,
+            (discord_id,),
+        ) as cursor:
             row = await cursor.fetchone()
-            
+
         if not row:
             return None
-            
+
         # row[0] is active_pet_id, row[1] is id, row[2] is user_id, row[3] is name, ...
         return self._row_to_pet_dict(row[1:])
 
     async def get_user_pets(self, discord_id: str) -> list[Dict[str, Any]]:
         """Retrieve all pets owned by a user."""
         db = await self.db_service.get_db()
-        async with db.execute("SELECT * FROM pets WHERE user_id = ?", (discord_id,)) as cursor:
+        async with db.execute(
+            "SELECT * FROM pets WHERE user_id = ?", (discord_id,)
+        ) as cursor:
             rows = await cursor.fetchall()
         return [self._row_to_pet_dict(r) for r in rows]
 
     async def set_active_pet(self, discord_id: str, pet_id: int) -> bool:
         """Set a user's active pet."""
         db = await self.db_service.get_db()
-        async with db.execute("SELECT id FROM pets WHERE id = ? AND user_id = ?", (pet_id, discord_id)) as cursor:
+        async with db.execute(
+            "SELECT id FROM pets WHERE id = ? AND user_id = ?", (pet_id, discord_id)
+        ) as cursor:
             row = await cursor.fetchone()
         if not row:
             return False
-            
-        await db.execute("UPDATE users SET active_pet_id = ? WHERE discord_id = ?", (pet_id, discord_id))
+
+        await db.execute(
+            "UPDATE users SET active_pet_id = ? WHERE discord_id = ?",
+            (pet_id, discord_id),
+        )
         await db.commit()
         return True
 
-    async def feed_active_pet(self, discord_id: str) -> Tuple[bool, str, Optional[Dict[str, Any]]]:
+    async def feed_active_pet(
+        self, discord_id: str
+    ) -> Tuple[bool, str, Optional[Dict[str, Any]]]:
         """Feed a fruit to the active pet. Restores HP or gains XP. Triggers evolution if level/XP milestones met."""
         db = await self.db_service.get_db()
         user = await self.check_or_create_user(db, discord_id)
         if user["focus_fruits"] <= 0:
-            return False, "You don't have any Focus Fruits! Complete Pomodoro sessions to earn fruits.", None
-            
+            return (
+                False,
+                "You don't have any Focus Fruits! Complete Pomodoro sessions to earn fruits.",
+                None,
+            )
+
         pet = await self.get_active_pet(discord_id)
         if not pet:
             return False, "You don't have an active pet to feed! Roll one first.", None
@@ -496,12 +758,12 @@ class GachaService:
         hp_gained = 0
         xp_gained = 0
         message = ""
-        
+
         new_hp = min(100, pet["hp"] + 20)
         if pet["hp"] < 100:
             hp_gained = new_hp - pet["hp"]
             message += f"Healed {hp_gained} HP. "
-        
+
         xp_gained = random.randint(15, 30)
         new_exp = pet["exp"] + xp_gained
         new_level = pet["level"]
@@ -513,7 +775,7 @@ class GachaService:
             new_exp -= 100
             new_level += 1
             level_up = True
-            
+
         if level_up:
             message += f"🎉 Level up! {pet['name']} is now Level {new_level}! "
 
@@ -521,7 +783,7 @@ class GachaService:
         new_stage = pet["stage"]
         evolution_triggered = False
         evolution_text = ""
-        
+
         if new_stage == 1 and new_level >= 15:
             new_stage = 2
             evolution_triggered = True
@@ -537,20 +799,26 @@ class GachaService:
             evolution_text = f"🌟 MYTHICAL MEGA EVOLUTION! {pet['name']} has transcended into **{pet['mega_name']}**!"
 
         # Deduct fruit and update pet
-        await db.execute("UPDATE users SET focus_fruits = focus_fruits - 1 WHERE discord_id = ?", (discord_id,))
-        await db.execute("""
+        await db.execute(
+            "UPDATE users SET focus_fruits = focus_fruits - 1 WHERE discord_id = ?",
+            (discord_id,),
+        )
+        await db.execute(
+            """
             UPDATE pets 
             SET hp = ?, level = ?, exp = ?, stage = ? 
             WHERE id = ?
-        """, (new_hp, new_level, new_exp, new_stage, pet["id"]))
+        """,
+            (new_hp, new_level, new_exp, new_stage, pet["id"]),
+        )
         await db.commit()
 
         updated_pet = await self.get_active_pet(discord_id)
-        
+
         full_message = f"You fed a Focus Fruit to {pet['name']}. {message}"
         if evolution_triggered:
             full_message += f"\n\n{evolution_text}"
-            
+
         return True, full_message, updated_pet
 
     def _row_to_pet_dict(self, row: tuple) -> Dict[str, Any]:

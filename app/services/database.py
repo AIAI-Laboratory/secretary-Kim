@@ -5,6 +5,7 @@ from app.core.logger import get_logger
 
 logger = get_logger(__name__)
 
+
 class DatabaseService:
     def __init__(self, db_path: str = None):
         self.db_path = db_path or settings.DATABASE_PATH

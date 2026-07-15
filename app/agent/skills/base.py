@@ -2,6 +2,7 @@ from abc import ABC, abstractmethod
 from typing import Any, Dict, List
 from google.genai import types
 
+
 class BaseSkill(ABC):
     """
     Base class for all Agent Skills.
@@ -34,7 +35,9 @@ class BaseSkill(ABC):
         pass
 
     @abstractmethod
-    async def execute(self, function_name: str, args: Dict[str, Any], context: Any) -> Any:
+    async def execute(
+        self, function_name: str, args: Dict[str, Any], context: Any
+    ) -> Any:
         """
         Execute the function requested by the LLM.
 

@@ -2,6 +2,7 @@ import datetime
 from typing import Any
 from app.agent.models import AgentRequest, SkillContext
 
+
 class ContextEngine:
     """
     Responsible for extracting and normalizing Context from Discord/User requests
@@ -14,7 +15,15 @@ class ContextEngine:
         """
         tz = datetime.timezone(datetime.timedelta(hours=7))
         now = datetime.datetime.now(tz)
-        days = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
+        days = [
+            "Monday",
+            "Tuesday",
+            "Wednesday",
+            "Thursday",
+            "Friday",
+            "Saturday",
+            "Sunday",
+        ]
         weekday = days[now.weekday()]
         return f"Today is {weekday}, {now.strftime('%B %d, %Y')}. The current time is {now.strftime('%H:%M:%S')} (timezone UTC+7)."
 
@@ -24,7 +33,7 @@ class ContextEngine:
         """
         server_members = {}
         voice_channels = {}
-        
+
         # If request is sent from a Discord Guild, gather additional context
         guild = request.discord_guild
         if guild:
@@ -34,7 +43,7 @@ class ContextEngine:
                     voice_channels[str(channel.id)] = channel.name
             except Exception:
                 pass
-            
+
             # Gather user list (limited by cache or fetch depending on bot design)
             try:
                 # In practice, members can be fetched via API or using guild.members cache
@@ -54,7 +63,7 @@ class ContextEngine:
             current_time_info=self.get_time_context(),
             discord_guild=request.discord_guild,
             discord_member=request.discord_member,
-            discord_interaction=request.discord_interaction
+            discord_interaction=request.discord_interaction,
         )
 
     def build_system_instruction(self, skill_descriptions: str) -> str:

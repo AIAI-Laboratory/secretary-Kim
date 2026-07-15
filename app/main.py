@@ -5,6 +5,7 @@ from app.core.logger import get_logger
 
 logger = get_logger(__name__)
 
+
 def main():
     logger.info("Starting Discord bot Secretary Kim...")
 
@@ -24,6 +25,7 @@ def main():
     registry.register(container.music_skill())
     registry.register(container.event_skill())
     registry.register(container.gacha_skill())
+    registry.register(container.pixellab_skill())
 
     # Get the unique bot instance (Singleton) from Container
     bot = container.discord_bot()
