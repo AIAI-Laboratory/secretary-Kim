@@ -7,7 +7,7 @@ from discord.ext import commands
 from discord import app_commands
 from app.core.config import settings
 from app.core.logger import get_logger
-from app.services.gacha import GachaService, RARITY_STYLING
+from app.services.gacha import GachaService, RARITY_STYLING, format_types
 from app.services.pomodoro import PomodoroService
 
 logger = get_logger(__name__)
@@ -32,7 +32,7 @@ class PetListSelect(discord.ui.Select):
         self.cog = cog
         options = []
         for p in pets[:25]:  # Discord select allows max 25 options
-            type_str = p["type1"] + (f"/{p['type2']}" if p["type2"] else "")
+            type_str = format_types(p["type1"], p["type2"])
             label = f"ID {p['id']}: {p['name']} (Lv.{p['level']} {p['rarity']})"
             desc = f"Stage {p['stage']} | Type: {type_str} | HP: {p['hp']}/100"
             options.append(
@@ -239,34 +239,59 @@ class GachaCog(commands.Cog):
         description="Roll a procedural Pokemon companion (Costs 100 Coins)",
     )
     async def gacha(self, interaction: discord.Interaction):
-        # Defer immediately to avoid timeout (3-second window)
-        await interaction.response.defer()
+        # Acknowledge immediately WITHOUT showing "is thinking..." loading state
+        await interaction.response.defer(thinking=False)
 
         user_id = str(interaction.user.id)
 
-        # Verify currency first to save AI API call budget
-        db = await self.bot.db_service.get_db()
-        async with db.execute(
-            "SELECT attendance_coins FROM users WHERE discord_id = ?", (user_id,)
-        ) as cursor:
-            coins_row = await cursor.fetchone()
-        coins = coins_row[0] if coins_row else 100
+        # 1. Roll attributes immediately (quick)
+        attrs = self.gacha_service._roll_attributes()
+        rarity = attrs["rarity"]
 
-        if coins < 100:
-            embed = discord.Embed(
-                description=f"❌ You do not have enough Coins! (You have: {coins} Coins, need: 100 Coins). Join voice rooms to earn more!",
-                color=0xED4245,
-            )
-            await interaction.followup.send(embed=embed)
-            return
+        # Map rarity to GIF loader
+        gif_map = {
+            "Common": "common.gif",
+            "Epic": "epic.gif",
+            "Legendary": "legendary.gif",
+            "God": "god.gif",
+            "Sub-Legendary": "legendary.gif",
+        }
+        gif_filename = gif_map.get(rarity, "common.gif")
+        gif_path = f"app/services/resources/{gif_filename}"
+
+        # Send loading GIF as followup
+        loading_file = discord.File(gif_path, filename=gif_filename)
+        loading_embed = discord.Embed(
+            title=f"🔮 Summoning {rarity} Companion...",
+            description="Designing and drawing your new pet... Please wait! ⌛",
+            color=0x5865F2,
+        )
+        loading_embed.set_image(url=f"attachment://{gif_filename}")
+        loading_msg = await interaction.followup.send(embed=loading_embed, file=loading_file, wait=True)
 
         try:
-            # 1. Roll Gacha
+            # 2. Verify currency (safe now that we've responded)
+            db = await self.bot.db_service.get_db()
+            async with db.execute(
+                "SELECT attendance_coins FROM users WHERE discord_id = ?", (user_id,)
+            ) as cursor:
+                coins_row = await cursor.fetchone()
+            coins = coins_row[0] if coins_row else 100
+
+            if coins < 100:
+                embed = discord.Embed(
+                    description=f"❌ You do not have enough Coins! (You have: {coins} Coins, need: 100 Coins). Join voice rooms to earn more!",
+                    color=0xED4245,
+                )
+                await loading_msg.edit(embed=embed, attachments=[])
+                return
+
+            # 3. Roll Gacha (pass pre-rolled attributes)
             pet_id, pet_dict, hd_bytes, pixel_bytes = (
-                await self.gacha_service.roll_gacha(user_id)
+                await self.gacha_service.roll_gacha(user_id, pre_rolled_attrs=attrs)
             )
 
-            # 2. Upload images to Discord channel to host them
+            # 3. Upload images to Discord channel to host them
             image_channel = self.bot.get_channel(settings.GACHA_IMAGE_CHANNEL_ID)
             if not image_channel:
                 image_channel = await self.bot.fetch_channel(
@@ -286,15 +311,13 @@ class GachaCog(commands.Cog):
             pixel_url = msg.attachments[0].url
             hd_url = pixel_url
 
-            # 3. Update DB
+            # 4. Update DB
             await self.gacha_service.update_pet_image(
                 pet_id, stage=1, hd_url=hd_url, pixel_url=pixel_url
             )
 
-            # 4. Show output
-            type_str = pet_dict["type1"] + (
-                f" / {pet_dict['type2']}" if pet_dict["type2"] else ""
-            )
+            # 5. Show output
+            type_str = format_types(pet_dict["type1"], pet_dict["type2"])
             rarity_name = pet_dict.get("rarity", "Common")
             style = RARITY_STYLING.get(rarity_name, RARITY_STYLING["Common"])
 
@@ -315,13 +338,18 @@ class GachaCog(commands.Cog):
             )
 
             view = GachaHDView(hd_url)
-            await interaction.followup.send(embed=embed, view=view)
+            await loading_msg.edit(embed=embed, attachments=[], view=view)
 
         except Exception as e:
             logger.error(f"Gacha slash command failed: {e}", exc_info=True)
-            await interaction.followup.send(
-                "❌ Failed to roll gacha. Cloudflare AI encountered an error. Please try again."
+            error_embed = discord.Embed(
+                description="❌ Failed to roll gacha. AI encountered an error. Please try again.",
+                color=0xED4245,
             )
+            try:
+                await loading_msg.edit(embed=error_embed, attachments=[])
+            except Exception:
+                pass
 
     @app_commands.command(
         name="pet-active",
@@ -345,7 +373,7 @@ class GachaCog(commands.Cog):
         stage_img = pet[f"stage{stage}_img"] if stage <= 3 else pet["mega_img"]
 
         # If the image URL is not uploaded yet, we try to fall back or show description
-        type_str = pet["type1"] + (f" / {pet['type2']}" if pet["type2"] else "")
+        type_str = format_types(pet["type1"], pet["type2"])
 
         embed = discord.Embed(
             title=f"🐾 Active Companion: {pet['name']}",
@@ -394,7 +422,7 @@ class GachaCog(commands.Cog):
         lines = []
         for p in pets:
             active_marker = "⭐ [Active] " if p["id"] == active_id else ""
-            type_str = p["type1"] + (f"/{p['type2']}" if p["type2"] else "")
+            type_str = format_types(p["type1"], p["type2"])
             lines.append(
                 f"- {active_marker}**ID {p['id']}**: {p['name']} (Lv.{p['level']} - Stage {p['stage']} - {p['rarity']} - {type_str}) - HP: {p['hp']}/100"
             )
@@ -516,9 +544,7 @@ class GachaCog(commands.Cog):
                 msg += f"\n⚠️ Image generation failed for this evolution stage: {e}"
 
         # Display final response
-        type_str = updated_pet["type1"] + (
-            f" / {updated_pet['type2']}" if updated_pet["type2"] else ""
-        )
+        type_str = format_types(updated_pet["type1"], updated_pet["type2"])
         stage_name = (
             updated_pet[f"stage{updated_pet['stage']}_name"]
             if updated_pet["stage"] <= 3

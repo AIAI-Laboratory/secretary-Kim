@@ -4,7 +4,7 @@ from typing import Any, Dict, List
 from google.genai import types
 from app.agent.skills.base import BaseSkill
 from app.agent.models import SkillContext, SkillResult
-from app.services.gacha import GachaService, RARITY_STYLING
+from app.services.gacha import GachaService, RARITY_STYLING, format_types
 from app.services.pomodoro import PomodoroService
 from app.core.config import settings
 from app.core.logger import get_logger
@@ -163,9 +163,11 @@ class GachaSkill(BaseSkill):
                 )
 
             try:
+                # Roll attributes first to ensure compatibility with weights and single-stage pets
+                attrs = self.gacha_service._roll_attributes()
                 # Roll and process
                 pet_id, pet_dict, hd_bytes, pixel_bytes = (
-                    await self.gacha_service.roll_gacha(context.user_id)
+                    await self.gacha_service.roll_gacha(context.user_id, pre_rolled_attrs=attrs)
                 )
 
                 # Upload to hosting channel
@@ -191,9 +193,7 @@ class GachaSkill(BaseSkill):
                     pet_id, stage=1, hd_url=hd_url, pixel_url=pixel_url
                 )
 
-                type_str = pet_dict["type1"] + (
-                    f" / {pet_dict['type2']}" if pet_dict["type2"] else ""
-                )
+                type_str = format_types(pet_dict["type1"], pet_dict["type2"])
                 rarity_name = pet_dict.get("rarity", "Common")
                 style = RARITY_STYLING.get(rarity_name, RARITY_STYLING["Common"])
 
@@ -244,7 +244,7 @@ class GachaSkill(BaseSkill):
             stage_name = pet[f"stage{stage}_name"] if stage <= 3 else pet["mega_name"]
             stage_desc = pet[f"stage{stage}_desc"] if stage <= 3 else pet["mega_desc"]
             stage_img = pet[f"stage{stage}_img"] if stage <= 3 else pet["mega_img"]
-            type_str = pet["type1"] + (f" / {pet['type2']}" if pet["type2"] else "")
+            type_str = format_types(pet["type1"], pet["type2"])
 
             embed = discord.Embed(
                 title=f"🐾 Active Companion: {pet['name']}",

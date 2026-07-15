@@ -33,6 +33,36 @@ TYPES = [
     "Fighting",
 ]
 
+TYPE_EMOJIS = {
+    "Fire": "🔥 Fire",
+    "Water": "💧 Water",
+    "Grass": "🌿 Grass",
+    "Electric": "⚡ Electric",
+    "Steel": "⚙️ Steel",
+    "Dark": "🌑 Dark",
+    "Psychic": "🔮 Psychic",
+    "Dragon": "🐉 Dragon",
+    "Ice": "❄️ Ice",
+    "Ground": "🏜️ Ground",
+    "Flying": "🦅 Flying",
+    "Ghost": "👻 Ghost",
+    "Fairy": "🧚 Fairy",
+    "Poison": "☠️ Poison",
+    "Rock": "🪨 Rock",
+    "Bug": "🐛 Bug",
+    "Normal": "⚪ Normal",
+    "Fighting": "🥊 Fighting",
+}
+
+
+def format_types(type1: str, type2: Optional[str] = None) -> str:
+    t1 = TYPE_EMOJIS.get(type1, type1)
+    if type2:
+        t2 = TYPE_EMOJIS.get(type2, type2)
+        return f"{t1} / {t2}"
+    return t1
+
+
 RARITY_STYLING = {
     "Common": {
         "title": "🎲 Gacha: New Companion Discovered!",
@@ -40,13 +70,28 @@ RARITY_STYLING = {
         "color": 0x979C9F,  # Grey
     },
     "Rare": {
-        "title": "✨ Gacha: Rare Companion Discovered! ✨",
-        "rarity_formatted": "💎 ✨ **Rare** ✨ 💎",
-        "color": 0x3498DB,  # Blue
+        "title": "✨ Gacha: Epic Companion Discovered! ✨",
+        "rarity_formatted": "💎 ✨ **Epic** ✨ 💎",
+        "color": 0x9B59B6,  # Purple
+    },
+    "Epic": {
+        "title": "✨ Gacha: Epic Companion Discovered! ✨",
+        "rarity_formatted": "💎 ✨ **Epic** ✨ 💎",
+        "color": 0x9B59B6,  # Purple
+    },
+    "Sub-Legendary": {
+        "title": "⚡ Gacha: LEGENDARY Companion Discovered! ⚡",
+        "rarity_formatted": "✨ ⚡ **Legendary** ⚡ ✨",
+        "color": 0xE67E22,  # Orange
     },
     "Legendary": {
-        "title": "👑 Gacha: LEGENDARY Companion Discovered! 👑",
-        "rarity_formatted": "🔥 🌟 **LEGENDARY** 🌟 🔥",
+        "title": "⚡ Gacha: LEGENDARY Companion Discovered! ⚡",
+        "rarity_formatted": "✨ ⚡ **Legendary** ⚡ ✨",
+        "color": 0xE67E22,  # Orange
+    },
+    "God": {
+        "title": "👑 Gacha: GOD Companion Discovered! 👑",
+        "rarity_formatted": "🌌 🔥 🌟 **GOD** 🌟 🔥 🌌",
         "color": 0xF1C40F,  # Gold/Yellow
     },
 }
@@ -308,22 +353,26 @@ class GachaService:
     def _roll_attributes(self) -> Dict[str, Any]:
         """Roll random attributes for a new Pokemon."""
         # 1. Roll elements
-        num_types = random.choices([1, 2], weights=[70, 30])[0]
+        num_types = random.choices([1, 2], weights=[50, 50])[0]
         selected_types = random.sample(TYPES, num_types)
         type1 = selected_types[0]
         type2 = selected_types[1] if num_types == 2 else None
 
-        # 2. Roll rarity
-        rarity = random.choices(["Common", "Rare", "Legendary"], weights=[70, 20, 10])[
-            0
-        ]
+        # 2. Roll rarity (weights: Common 50, Epic 20, Legendary 10, God 5)
+        rarity = random.choices(
+            ["Common", "Epic", "Legendary", "God"],
+            weights=[50, 20, 10, 5]
+        )[0]
 
         # 3. Roll concept
         concept_category = random.choice(list(CONCEPTS.keys()))
         concept = random.choice(CONCEPTS[concept_category])
 
-        # 4. Roll Mega Capability (20% chance)
-        mega_capable = random.choices([0, 1], weights=[80, 20])[0]
+        # 4. Roll Mega Capability (20% chance, only if not Legendary/God)
+        if rarity in ["Legendary", "God"]:
+            mega_capable = 0
+        else:
+            mega_capable = random.choices([0, 1], weights=[80, 20])[0]
 
         return {
             "rarity": rarity,
@@ -337,39 +386,27 @@ class GachaService:
         """Call Gemini to design the creature stages using structured output schema."""
         from app.domain.models.gacha import GachaPetDesign
 
+        is_single_stage = attrs["rarity"] in ["Legendary", "God"]
+
         system_prompt = (
             "You are a world-class pocket monster designer with a deep sense of creativity and narrative. "
-            "Your task is to design a fully original fictional monster species with 3 evolution stages (plus an optional Mega stage), "
-            "inspired by the provided concept, types, and rarity.\n\n"
+            "Your task is to design a fully original fictional monster species inspired by the provided concept, types, and rarity.\n\n"
             "## Design Philosophy\n"
             "- The creature must feel fresh and original — avoid directly copying existing Pokémon designs.\n"
             "- The concept (e.g. 'Clock', 'Rain', 'Griffin') should be deeply reflected in the creature's biology, silhouette, and aesthetic.\n"
-            "- Rarity directly determines complexity and visual impressiveness:\n"
+            "- Rarity directly determines complexity, visual style, and progression:\n"
             "  • Common → simple, cute, minimalist design with 1–2 defining features.\n"
-            "  • Rare → more elaborate, dual-theme integration, elegant or fierce presence.\n"
-            "  • Legendary → jaw-dropping, mythic silhouette, radiates power; complex layered anatomy.\n"
-            "- Evolution stages must feel like a coherent progression (same species, growing more powerful and complex).\n"
-            "- Each stage should have a distinct, memorable silhouette.\n\n"
-            "## Type Integration\n"
-            "- Elemental types must influence the color palette and visual motifs:\n"
-            "  Fire → warm reds/oranges, ember glow, flame textures\n"
-            "  Water → blue-green hues, fluid fins, shimmering scales\n"
-            "  Electric → bright yellow/white, jagged shapes, crackling aura\n"
-            "  (and so on for other types)\n"
-            "- If dual-typed, blend both type aesthetics in a balanced, intentional way.\n\n"
-            "## Naming Rules\n"
-            "- Species name (base 'name') must be short, punchy, and memorable (1–2 syllables preferred).\n"
-            "- Each stage's name should reflect progression (e.g. Ignub → Ignachar → Volcaron).\n"
-            "- Mega form names should add 'Mega' prefix or a dramatic suffix.\n\n"
-            "## Description Rules\n"
-            "- Descriptions should be flavourful, lore-rich, and ~2 sentences long.\n"
-            "- Evoke a sense of personality and world-building.\n\n"
+            "  • Epic → more elaborate, dual-theme integration, elegant or fierce presence.\n"
+            "  • Legendary & God → jaw-dropping, mythical, godly power, supreme visual presence, radiates pure energy or cosmic majesty. These must look incredibly cool, powerful, and god-like!\n"
+            "- Elemental types must influence the color palette and visual motifs.\n\n"
+            "## Evolution Rules\n"
+            f"{'• Since this is a ' + attrs['rarity'] + ' creature, it does NOT evolve. It only has one single stage. Therefore, you MUST set stage2, stage3, and mega to null / None. Do NOT fill in stage2, stage3, or mega.' if is_single_stage else '• For Common and Epic creatures, you must design all 3 stages. Evolution stages must feel like a coherent progression.'}\n\n"
             "## Visual Prompt Rules (CRITICAL)\n"
             "- In 'visual_prompt', describe ONLY the creature itself — body shape, limb count, proportions, textures, colors, eyes, markings, and any elemental effects on its body.\n"
             "- DO NOT mention any background, environment, ground, sky, weather, shadow, or surrounding objects.\n"
             "- Be highly specific: avoid vague words like 'glowing' or 'colorful'. Specify which part glows, what color, how intensely.\n"
             "- Describe from head to body to limbs/tail in logical order.\n"
-            "- Length: 3–5 detailed sentences per stage."
+            f"- Length: {'5-6 detailed, complex, epic sentences describing a legendary/god form.' if is_single_stage else '3–5 detailed sentences.'}"
         )
 
         user_input = {
@@ -431,7 +468,7 @@ class GachaService:
         return pixel_bytes
 
     async def roll_gacha(
-        self, discord_id: str
+        self, discord_id: str, pre_rolled_attrs: Optional[Dict[str, Any]] = None
     ) -> Tuple[int, Dict[str, Any], bytes, bytes]:
         """
         Deduct FP, roll attributes, call LLM to generate descriptions,
@@ -459,8 +496,8 @@ class GachaService:
                 (discord_id,),
             )
 
-            # 2. Roll random attributes
-            attrs = self._roll_attributes()
+            # 2. Roll random attributes (or use pre-rolled)
+            attrs = pre_rolled_attrs or self._roll_attributes()
 
             # 3. Call LLM to generate description JSON
             design = await self._call_gemini_llm(attrs)
@@ -477,16 +514,20 @@ class GachaService:
             hd_bytes = pixel_bytes
 
             # 6. Save pet to database
-            stage1_name = design["stage1"]["name"]
-            stage1_desc = design["stage1"]["description"]
+            stage1 = design.get("stage1") or {}
+            stage1_name = stage1.get("name")
+            stage1_desc = stage1.get("description")
+            stage1_prompt = stage1.get("visual_prompt")
 
-            stage2_name = design["stage2"]["name"]
-            stage2_desc = design["stage2"]["description"]
-            stage2_prompt = design["stage2"]["visual_prompt"]
+            stage2 = design.get("stage2") or {}
+            stage2_name = stage2.get("name", "")
+            stage2_desc = stage2.get("description", "")
+            stage2_prompt = stage2.get("visual_prompt", "")
 
-            stage3_name = design["stage3"]["name"]
-            stage3_desc = design["stage3"]["description"]
-            stage3_prompt = design["stage3"]["visual_prompt"]
+            stage3 = design.get("stage3") or {}
+            stage3_name = stage3.get("name", "")
+            stage3_desc = stage3.get("description", "")
+            stage3_prompt = stage3.get("visual_prompt", "")
 
             mega = design.get("mega") or {}
             mega_name = mega.get("name")
@@ -686,24 +727,25 @@ class GachaService:
         if level_up:
             message += f"🎉 Level up! {pet['name']} is now Level {new_level}! "
 
-        # Evolution checkpoints
+        # Evolution checkpoints (Legendary, God, and Sub-Legendary pets do not evolve)
         new_stage = pet["stage"]
         evolution_triggered = False
         evolution_text = ""
 
-        if new_stage == 1 and new_level >= 15:
-            new_stage = 2
-            evolution_triggered = True
-            evolution_text = f"✨ Evolutionary energy is surging! {pet['name']} is evolving into Stage 2: **{pet['stage2_name']}**!"
-        elif new_stage == 2 and new_level >= 36:
-            new_stage = 3
-            evolution_triggered = True
-            evolution_text = f"✨ Evolution! {pet['name']} is evolving into its ultimate form, Stage 3: **{pet['stage3_name']}**!"
-        elif new_stage == 3 and pet["mega_capable"] and new_level >= 50:
-            # Let's say user needs to feed the pet and it reaches Level 50 to Mega Evolve
-            new_stage = 4
-            evolution_triggered = True
-            evolution_text = f"🌟 MYTHICAL MEGA EVOLUTION! {pet['name']} has transcended into **{pet['mega_name']}**!"
+        if pet["rarity"] not in ["Legendary", "God", "Sub-Legendary"]:
+            if new_stage == 1 and new_level >= 15:
+                new_stage = 2
+                evolution_triggered = True
+                evolution_text = f"✨ Evolutionary energy is surging! {pet['name']} is evolving into Stage 2: **{pet['stage2_name']}**!"
+            elif new_stage == 2 and new_level >= 36:
+                new_stage = 3
+                evolution_triggered = True
+                evolution_text = f"✨ Evolution! {pet['name']} is evolving into its ultimate form, Stage 3: **{pet['stage3_name']}**!"
+            elif new_stage == 3 and pet["mega_capable"] and new_level >= 50:
+                # Let's say user needs to feed the pet and it reaches Level 50 to Mega Evolve
+                new_stage = 4
+                evolution_triggered = True
+                evolution_text = f"🌟 MYTHICAL MEGA EVOLUTION! {pet['name']} has transcended into **{pet['mega_name']}**!"
 
         # Deduct coins and update pet
         await db.execute(
