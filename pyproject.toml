@@ -14,4 +14,10 @@ dependencies = [
     "yt-dlp>=2026.6.9",
     "PyNaCl>=1.6.2",
     "davey>=0.1.5",
+    "pillow>=12.3.0",
+    "aiosqlite>=0.22.1",
+    "pyxelate",
 ]
+
+[tool.uv.sources]
+pyxelate = { git = "https://github.com/sedthh/pyxelate.git" }

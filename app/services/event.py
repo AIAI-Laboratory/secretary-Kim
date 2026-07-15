@@ -5,6 +5,7 @@ from app.core.logger import get_logger
 
 logger = get_logger(__name__)
 
+
 class EventService:
     """
     Pure business service for managing Discord Guild Scheduled Events.
@@ -33,7 +34,9 @@ class EventService:
         now = datetime.datetime.now(datetime.timezone.utc)
         if start_time < now:
             start_time = now + datetime.timedelta(minutes=5)
-            logger.info(f"Start time is in the past. Automatically adjusted to: {start_time}")
+            logger.info(
+                f"Start time is in the past. Automatically adjusted to: {start_time}"
+            )
 
         # Default end time to 1 hour after start time if not provided
         if not end_time:
@@ -51,7 +54,9 @@ class EventService:
             try:
                 voice_channel = guild.get_channel(int(channel_id))
             except Exception as e:
-                logger.warning(f"Could not retrieve voice channel with ID {channel_id}: {e}")
+                logger.warning(
+                    f"Could not retrieve voice channel with ID {channel_id}: {e}"
+                )
 
         # Create scheduled event on the Guild
         if voice_channel:
@@ -62,9 +67,11 @@ class EventService:
                 end_time=end_time,
                 entity_type=discord.EntityType.voice,
                 channel=voice_channel,
-                privacy_level=discord.PrivacyLevel.guild_only
+                privacy_level=discord.PrivacyLevel.guild_only,
             )
-            logger.info(f"Created voice scheduled event '{name}' in channel '{voice_channel.name}'")
+            logger.info(
+                f"Created voice scheduled event '{name}' in channel '{voice_channel.name}'"
+            )
         else:
             event = await guild.create_scheduled_event(
                 name=name,
@@ -73,8 +80,10 @@ class EventService:
                 end_time=end_time,
                 entity_type=discord.EntityType.external,
                 location=location or "Discord Server",
-                privacy_level=discord.PrivacyLevel.guild_only
+                privacy_level=discord.PrivacyLevel.guild_only,
             )
-            logger.info(f"Created external scheduled event '{name}' at location '{location}'")
+            logger.info(
+                f"Created external scheduled event '{name}' at location '{location}'"
+            )
 
         return event

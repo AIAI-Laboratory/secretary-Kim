@@ -3,6 +3,7 @@ from app.core.logger import get_logger
 
 logger = get_logger(__name__)
 
+
 class TaskService:
     """
     Pure business service for managing tasks/todos.
@@ -37,10 +38,14 @@ class TaskService:
         }
         self._tasks.append(task)
         self._next_id += 1
-        logger.info(f"Created task {task['id']}: {title} (assigned to: {assignee_name})")
+        logger.info(
+            f"Created task {task['id']}: {title} (assigned to: {assignee_name})"
+        )
         return task
 
-    async def get_tasks(self, assignee_id: Optional[str] = None) -> List[Dict[str, Any]]:
+    async def get_tasks(
+        self, assignee_id: Optional[str] = None
+    ) -> List[Dict[str, Any]]:
         """
         Retrieves all tasks or tasks assigned to a specific user.
         """
@@ -48,7 +53,9 @@ class TaskService:
             return [t for t in self._tasks if t["assignee_id"] == assignee_id]
         return self._tasks
 
-    async def update_task_status(self, task_id: int, status: str) -> Optional[Dict[str, Any]]:
+    async def update_task_status(
+        self, task_id: int, status: str
+    ) -> Optional[Dict[str, Any]]:
         """
         Updates the status of a task (e.g. pending, in_progress, completed).
         """

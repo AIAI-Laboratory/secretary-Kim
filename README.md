@@ -140,6 +140,13 @@ Under the [Discord Developer Portal](https://discord.com/developers/applications
 ### Method A: Running with Docker (Recommended)
 Docker is the cleanest deployment route as it automatically configures the correct Python environment and compiles system-level **FFmpeg** binaries.
 
+end2end
+```bash
+docker build -t secretary-kim-bot .
+docker stop secretary-kim && docker rm secretary-kim
+docker run -d --name secretary-kim --env-file .env --restart unless-stopped secretary-kim-bot
+```
+
 1.  **Build the image:**
     ```bash
     docker build -t secretary-kim-bot .

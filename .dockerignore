@@ -28,3 +28,4 @@ temp/
 # Docker metadata
 Dockerfile
 .dockerignore
+temp/
