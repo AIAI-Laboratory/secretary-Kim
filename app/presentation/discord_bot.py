@@ -2,6 +2,7 @@ import discord
 from discord.ext import commands
 from discord import app_commands
 import asyncio
+from typing import Any
 from app.services.music import MusicService
 from app.services.event import EventService
 from app.services.task import TaskService
@@ -383,15 +384,20 @@ class MusicCog(commands.Cog):
 
 class MusicBot(commands.Bot):
     """Main bot client, handles connection and event dispatching."""
-    def __init__(self, kim_agent: KimAgent, music_service: MusicService, event_service: EventService, task_service: TaskService, *args, **kwargs):
+    def __init__(self, kim_agent: KimAgent, music_service: MusicService, event_service: EventService, task_service: TaskService, db_service: Any, gacha_service: Any, pomodoro_service: Any, *args, **kwargs):
         intents = discord.Intents.default()
         intents.voice_states = True
+        intents.members = True # Ensure members intent is active for member lookups
+        intents.message_content = True # Ensure message content intent is active
         
         super().__init__(command_prefix="!", intents=intents, *args, **kwargs)
         self.kim_agent = kim_agent
         self.music_service = music_service
         self.event_service = event_service
         self.task_service = task_service
+        self.db_service = db_service
+        self.gacha_service = gacha_service
+        self.pomodoro_service = pomodoro_service
         self.managers = {}
 
     def get_manager(self, guild_id: int) -> GuildMusicManager:
@@ -400,11 +406,17 @@ class MusicBot(commands.Bot):
         return self.managers[guild_id]
 
     async def setup_hook(self):
+        # Initialize SQLite Database
+        await self.db_service.init_db()
+
         # Register music control Cog
         await self.add_cog(MusicCog(self))
         # Register AI event Cog
         from app.presentation.event_cog import EventCog
         await self.add_cog(EventCog(self))
+        # Register Gacha & Pomodoro Cog
+        from app.presentation.gacha_cog import GachaCog
+        await self.add_cog(GachaCog(self))
         # Sync slash commands
         await self.tree.sync()
         logger.info("Slash commands synced successfully.")

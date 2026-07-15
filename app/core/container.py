@@ -2,10 +2,14 @@ from dependency_injector import containers, providers
 from app.services.music import MusicService
 from app.services.event import EventService
 from app.services.task import TaskService
+from app.services.database import DatabaseService
+from app.services.gacha import GachaService
+from app.services.pomodoro import PomodoroService
 from app.agent.registry import SkillRegistry
 from app.agent.context import ContextEngine
 from app.agent.skills.music_skill import MusicSkill
 from app.agent.skills.event_skill import EventSkill
+from app.agent.skills.gacha_skill import GachaSkill
 from app.agent.core import KimAgent
 from app.presentation.discord_bot import MusicBot
 
@@ -13,6 +17,21 @@ class Container(containers.DeclarativeContainer):
     wiring_config = containers.WiringConfiguration(modules=["app.main"])
 
     # Core business services
+    db_service = providers.Singleton(
+        DatabaseService
+    )
+
+    gacha_service = providers.Singleton(
+        GachaService,
+        db_service=db_service
+    )
+
+    pomodoro_service = providers.Singleton(
+        PomodoroService,
+        db_service=db_service,
+        gacha_service=gacha_service
+    )
+
     music_service = providers.Singleton(
         MusicService
     )
@@ -45,6 +64,12 @@ class Container(containers.DeclarativeContainer):
         event_service=event_service
     )
 
+    gacha_skill = providers.Singleton(
+        GachaSkill,
+        gacha_service=gacha_service,
+        pomodoro_service=pomodoro_service
+    )
+
     # Central AI Agent
     kim_agent = providers.Singleton(
         KimAgent,
@@ -57,5 +82,8 @@ class Container(containers.DeclarativeContainer):
         kim_agent=kim_agent,
         music_service=music_service,
         event_service=event_service,
-        task_service=task_service
+        task_service=task_service,
+        db_service=db_service,
+        gacha_service=gacha_service,
+        pomodoro_service=pomodoro_service
     )
