@@ -3,11 +3,13 @@ from google.genai import types
 from app.agent.skills.base import BaseSkill
 from app.agent.models import SkillContext, SkillResult
 
+
 class SkillRegistry:
     """
     Registry managing the list of Agent skills.
     Allows registering new skills, retrieving the list of tool declarations for LLM, and dispatching requests to the appropriate skill.
     """
+
     def __init__(self):
         self._skills: Dict[str, BaseSkill] = {}
 
@@ -16,7 +18,9 @@ class SkillRegistry:
         Register a skill into the system.
         """
         if skill.name in self._skills:
-            raise ValueError(f"Skill with name '{skill.name}' already exists in Registry.")
+            raise ValueError(
+                f"Skill with name '{skill.name}' already exists in Registry."
+            )
         self._skills[skill.name] = skill
 
     def get_all_function_declarations(self) -> List[types.FunctionDeclaration]:
@@ -37,7 +41,9 @@ class SkillRegistry:
             descriptions.append(f"- {skill.name}: {skill.description}")
         return "\n".join(descriptions)
 
-    async def dispatch(self, function_name: str, args: Dict[str, Any], context: SkillContext) -> SkillResult:
+    async def dispatch(
+        self, function_name: str, args: Dict[str, Any], context: SkillContext
+    ) -> SkillResult:
         """
         Search for which skill owns function_name and forward the execution to that skill.
         """
@@ -47,8 +53,8 @@ class SkillRegistry:
             for decl in declarations:
                 if decl.name == function_name:
                     return await skill.execute(function_name, args, context)
-        
+
         return SkillResult(
             success=False,
-            message=f"No skill found to handle function '{function_name}'."
+            message=f"No skill found to handle function '{function_name}'.",
         )

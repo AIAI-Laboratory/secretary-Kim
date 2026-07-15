@@ -9,47 +9,30 @@ from app.agent.skills.event_skill import EventSkill
 from app.agent.core import KimAgent
 from app.presentation.discord_bot import MusicBot
 
+
 class Container(containers.DeclarativeContainer):
     wiring_config = containers.WiringConfiguration(modules=["app.main"])
 
     # Core business services
-    music_service = providers.Singleton(
-        MusicService
-    )
+    music_service = providers.Singleton(MusicService)
 
-    event_service = providers.Singleton(
-        EventService
-    )
+    event_service = providers.Singleton(EventService)
 
-    task_service = providers.Singleton(
-        TaskService
-    )
+    task_service = providers.Singleton(TaskService)
 
     # Agent core components
-    skill_registry = providers.Singleton(
-        SkillRegistry
-    )
+    skill_registry = providers.Singleton(SkillRegistry)
 
-    context_engine = providers.Singleton(
-        ContextEngine
-    )
+    context_engine = providers.Singleton(ContextEngine)
 
     # Agent skills
-    music_skill = providers.Singleton(
-        MusicSkill,
-        music_service=music_service
-    )
+    music_skill = providers.Singleton(MusicSkill, music_service=music_service)
 
-    event_skill = providers.Singleton(
-        EventSkill,
-        event_service=event_service
-    )
+    event_skill = providers.Singleton(EventSkill, event_service=event_service)
 
     # Central AI Agent
     kim_agent = providers.Singleton(
-        KimAgent,
-        skill_registry=skill_registry,
-        context_engine=context_engine
+        KimAgent, skill_registry=skill_registry, context_engine=context_engine
     )
 
     discord_bot = providers.Singleton(
@@ -57,5 +40,5 @@ class Container(containers.DeclarativeContainer):
         kim_agent=kim_agent,
         music_service=music_service,
         event_service=event_service,
-        task_service=task_service
+        task_service=task_service,
     )
