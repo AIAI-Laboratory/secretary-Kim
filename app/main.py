@@ -5,6 +5,7 @@ from app.core.logger import get_logger
 
 logger = get_logger(__name__)
 
+
 def main():
     logger.info("Bắt đầu khởi động bot Discord Secretary Kim...")
 

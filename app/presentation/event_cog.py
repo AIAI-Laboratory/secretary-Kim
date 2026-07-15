@@ -7,7 +7,10 @@ from app.core.logger import get_logger
 
 logger = get_logger(__name__)
 
-def create_proposed_embed(action: ProposedAction, requester: discord.Member) -> discord.Embed:
+
+def create_proposed_embed(
+    action: ProposedAction, requester: discord.Member
+) -> discord.Embed:
     """Tạo một Discord Embed hiển thị chi tiết của Proposed Action."""
     embed = discord.Embed(
         title="📋 Bản Nháp Event (Proposed Action)",
@@ -15,15 +18,23 @@ def create_proposed_embed(action: ProposedAction, requester: discord.Member) -> 
             "Thư Ký Kim đã dịch câu lệnh tự nhiên của bạn thành thông tin chi tiết dưới đây.\n"
             "Vui lòng nhấn **Approve** để phê duyệt tạo event, hoặc **Reject** để hủy, **Edit** để chỉnh sửa."
         ),
-        color=0xFEE75C  # Màu vàng cảnh báo nháp
+        color=0xFEE75C,  # Màu vàng cảnh báo nháp
     )
-    
+
     embed.add_field(name="📌 Tên Event/Task", value=action.event_name, inline=False)
-    embed.add_field(name="📝 Mô tả", value=action.description or "Không có mô tả", inline=False)
-    
-    assignee_str = f"<@{action.assignee_id}>" if action.assignee_id else (action.assignee_name or "Chưa gán")
-    embed.add_field(name="👤 Người thực hiện (Assignee)", value=assignee_str, inline=True)
-    
+    embed.add_field(
+        name="📝 Mô tả", value=action.description or "Không có mô tả", inline=False
+    )
+
+    assignee_str = (
+        f"<@{action.assignee_id}>"
+        if action.assignee_id
+        else (action.assignee_name or "Chưa gán")
+    )
+    embed.add_field(
+        name="👤 Người thực hiện (Assignee)", value=assignee_str, inline=True
+    )
+
     # Định dạng mốc thời gian hiển thị dưới dạng Discord timestamp
     start_str = "Không xác định"
     if action.scheduled_start_time:
@@ -33,18 +44,23 @@ def create_proposed_embed(action: ProposedAction, requester: discord.Member) -> 
             start_str = f"<t:{timestamp}:F> (<t:{timestamp}:R>)"
         except Exception:
             start_str = action.scheduled_start_time
-            
+
     embed.add_field(name="⏰ Thời gian bắt đầu", value=start_str, inline=True)
-    location_val = f"🔊 Kênh thoại: <#{action.channel_id}>" if action.channel_id else (action.location or "Discord Server")
+    location_val = (
+        f"🔊 Kênh thoại: <#{action.channel_id}>"
+        if action.channel_id
+        else (action.location or "Discord Server")
+    )
     embed.add_field(name="📍 Địa điểm", value=location_val, inline=True)
-    
+
     embed.set_footer(text=f"Yêu cầu bởi {requester.display_name}")
     return embed
 
 
 class EditEventModal(discord.ui.Modal):
     """Modal cho phép chỉnh sửa thông tin bản nháp trước khi phê duyệt."""
-    def __init__(self, parent_view: 'ProposedActionView'):
+
+    def __init__(self, parent_view: "ProposedActionView"):
         super().__init__(title="Chỉnh sửa thông tin Event")
         self.parent_view = parent_view
         self.action = parent_view.action
@@ -53,7 +69,7 @@ class EditEventModal(discord.ui.Modal):
             label="Tên Event/Task",
             default=self.action.event_name,
             placeholder="Nhập tên event/task",
-            required=True
+            required=True,
         )
         self.add_item(self.name_input)
 
@@ -62,7 +78,7 @@ class EditEventModal(discord.ui.Modal):
             style=discord.TextStyle.paragraph,
             default=self.action.description or "",
             placeholder="Mô tả công việc, deadline, phân công...",
-            required=False
+            required=False,
         )
         self.add_item(self.desc_input)
 
@@ -70,7 +86,7 @@ class EditEventModal(discord.ui.Modal):
             label="Người thực hiện (ID, @Mention hoặc Tên)",
             default=self.action.assignee_id or self.action.assignee_name or "",
             placeholder="ID, tag user, hoặc để trống",
-            required=False
+            required=False,
         )
         self.add_item(self.assignee_input)
 
@@ -78,7 +94,7 @@ class EditEventModal(discord.ui.Modal):
             label="Thời gian bắt đầu (ISO 8601)",
             default=self.action.scheduled_start_time or "",
             placeholder="Ví dụ: 2026-06-19T17:00:00+07:00",
-            required=True
+            required=True,
         )
         self.add_item(self.time_input)
 
@@ -86,7 +102,7 @@ class EditEventModal(discord.ui.Modal):
             label="Địa điểm",
             default=self.action.location or "Discord Server",
             placeholder="Địa điểm tổ chức event",
-            required=False
+            required=False,
         )
         self.add_item(self.loc_input)
 
@@ -97,7 +113,7 @@ class EditEventModal(discord.ui.Modal):
         except ValueError:
             await interaction.response.send_message(
                 "❌ Định dạng thời gian không hợp lệ. Vui lòng sử dụng định dạng ISO 8601 (ví dụ: `2026-06-19T17:00:00+07:00`).",
-                ephemeral=True
+                ephemeral=True,
             )
             return
 
@@ -105,21 +121,26 @@ class EditEventModal(discord.ui.Modal):
         self.action.event_name = self.name_input.value
         self.action.description = self.desc_input.value
         self.action.scheduled_start_time = self.time_input.value
-        
+
         loc_val = self.loc_input.value.strip()
         self.action.channel_id = None
         self.action.channel_name = None
         self.action.location = loc_val or "Discord Server"
-        
+
         if loc_val and interaction.guild:
             clean_chan_id = "".join(filter(str.isdigit, loc_val))
             voice_chan = None
             if clean_chan_id:
-                voice_chan = discord.utils.get(interaction.guild.voice_channels, id=int(clean_chan_id))
+                voice_chan = discord.utils.get(
+                    interaction.guild.voice_channels, id=int(clean_chan_id)
+                )
             if not voice_chan:
                 # Tìm phòng thoại theo tên (không phân biệt chữ hoa thường)
-                voice_chan = discord.utils.find(lambda c: c.name.lower() == loc_val.lower(), interaction.guild.voice_channels)
-            
+                voice_chan = discord.utils.find(
+                    lambda c: c.name.lower() == loc_val.lower(),
+                    interaction.guild.voice_channels,
+                )
+
             if voice_chan:
                 self.action.channel_id = str(voice_chan.id)
                 self.action.channel_name = voice_chan.name
@@ -132,7 +153,11 @@ class EditEventModal(discord.ui.Modal):
             clean_id = "".join(filter(str.isdigit, assignee_val))
             if clean_id:
                 self.action.assignee_id = clean_id
-                member = interaction.guild.get_member(int(clean_id)) if interaction.guild else None
+                member = (
+                    interaction.guild.get_member(int(clean_id))
+                    if interaction.guild
+                    else None
+                )
                 if member:
                     self.action.assignee_name = member.display_name
                 else:
@@ -141,10 +166,14 @@ class EditEventModal(discord.ui.Modal):
                 # Tìm kiếm theo tên trong server
                 member = None
                 if interaction.guild:
-                    member = discord.utils.get(interaction.guild.members, name=assignee_val)
+                    member = discord.utils.get(
+                        interaction.guild.members, name=assignee_val
+                    )
                     if not member:
-                        member = discord.utils.get(interaction.guild.members, display_name=assignee_val)
-                
+                        member = discord.utils.get(
+                            interaction.guild.members, display_name=assignee_val
+                        )
+
                 if member:
                     self.action.assignee_id = str(member.id)
                     self.action.assignee_name = member.display_name
@@ -162,7 +191,10 @@ class EditEventModal(discord.ui.Modal):
 
 class ProposedActionView(discord.ui.View):
     """View chứa các nút bấm Approve, Reject, Edit cho bản nháp."""
-    def __init__(self, action: ProposedAction, requester: discord.Member, bot: commands.Bot):
+
+    def __init__(
+        self, action: ProposedAction, requester: discord.Member, bot: commands.Bot
+    ):
         super().__init__(timeout=600)  # Hạn chế timeout trong 10 phút
         self.action = action
         self.requester = requester
@@ -170,42 +202,57 @@ class ProposedActionView(discord.ui.View):
 
     async def interaction_check(self, interaction: discord.Interaction) -> bool:
         # Chỉ người yêu cầu ban đầu hoặc Quản trị viên/Người quản lý event mới có thể bấm nút
-        is_admin = interaction.user.guild_permissions.administrator or interaction.user.guild_permissions.manage_events
+        is_admin = (
+            interaction.user.guild_permissions.administrator
+            or interaction.user.guild_permissions.manage_events
+        )
         if interaction.user.id == self.requester.id or is_admin:
             return True
-        await interaction.response.send_message("❌ Bạn không được phân quyền để phê duyệt bản nháp này.", ephemeral=True)
+        await interaction.response.send_message(
+            "❌ Bạn không được phân quyền để phê duyệt bản nháp này.", ephemeral=True
+        )
         return False
 
     @discord.ui.button(label="Approve", style=discord.ButtonStyle.green, emoji="✅")
-    async def approve(self, interaction: discord.Interaction, button: discord.ui.Button):
+    async def approve(
+        self, interaction: discord.Interaction, button: discord.ui.Button
+    ):
         await interaction.response.defer()
-        
+
         guild = interaction.guild
         if not guild:
-            await interaction.followup.send("❌ Chỉ có thể chạy lệnh này trong server Discord.")
+            await interaction.followup.send(
+                "❌ Chỉ có thể chạy lệnh này trong server Discord."
+            )
             return
 
         try:
             # Phân tích thời gian bắt đầu
-            start_time = datetime.datetime.fromisoformat(self.action.scheduled_start_time)
-            
+            start_time = datetime.datetime.fromisoformat(
+                self.action.scheduled_start_time
+            )
+
             # Đảm bảo thời gian bắt đầu có múi giờ
             if start_time.tzinfo is None:
                 tz = datetime.timezone(datetime.timedelta(hours=7))
                 start_time = start_time.replace(tzinfo=tz)
-                
+
             # Discord yêu cầu thời gian bắt đầu của event phải ở tương lai
             now = datetime.datetime.now(datetime.timezone.utc)
             if start_time < now:
                 # Tự động đẩy lên thời điểm hiện tại + 5 phút để tránh lỗi Discord
                 start_time = now + datetime.timedelta(minutes=5)
-                logger.info(f"Thời gian bắt đầu ở quá khứ. Đã cập nhật thành tương lai: {start_time}")
-            
+                logger.info(
+                    f"Thời gian bắt đầu ở quá khứ. Đã cập nhật thành tương lai: {start_time}"
+                )
+
             # Tính thời gian kết thúc (Mặc định 1 giờ sau khi bắt đầu)
             end_time = None
             if self.action.scheduled_end_time:
                 try:
-                    end_time = datetime.datetime.fromisoformat(self.action.scheduled_end_time)
+                    end_time = datetime.datetime.fromisoformat(
+                        self.action.scheduled_end_time
+                    )
                     if end_time.tzinfo is None:
                         tz = datetime.timezone(datetime.timedelta(hours=7))
                         end_time = end_time.replace(tzinfo=tz)
@@ -213,7 +260,7 @@ class ProposedActionView(discord.ui.View):
                         end_time = start_time + datetime.timedelta(hours=1)
                 except Exception:
                     pass
-            
+
             if not end_time:
                 end_time = start_time + datetime.timedelta(hours=1)
 
@@ -233,7 +280,7 @@ class ProposedActionView(discord.ui.View):
                     end_time=end_time,
                     entity_type=discord.EntityType.voice,
                     channel=voice_channel,
-                    privacy_level=discord.PrivacyLevel.guild_only
+                    privacy_level=discord.PrivacyLevel.guild_only,
                 )
             else:
                 event = await guild.create_scheduled_event(
@@ -243,28 +290,44 @@ class ProposedActionView(discord.ui.View):
                     end_time=end_time,
                     entity_type=discord.EntityType.external,
                     location=self.action.location or "Discord Server",
-                    privacy_level=discord.PrivacyLevel.guild_only
+                    privacy_level=discord.PrivacyLevel.guild_only,
                 )
 
             # Cập nhật thông báo đã tạo thành công, vô hiệu hóa các nút bấm
             embed = discord.Embed(
                 title="✅ Event Đã Được Phê Duyệt & Tạo Thành Công",
                 description=f"Event đã được tạo thành công trên server bởi {interaction.user.mention}.",
-                color=0x57F287  # Xanh lục
+                color=0x57F287,  # Xanh lục
             )
             embed.add_field(name="📌 Tên Event/Task", value=event.name, inline=False)
-            embed.add_field(name="⏰ Bắt đầu", value=f"<t:{int(event.start_time.timestamp())}:F>", inline=True)
-            location_display = f"<#{event.channel.id}>" if event.channel else (event.location or "Discord Server")
+            embed.add_field(
+                name="⏰ Bắt đầu",
+                value=f"<t:{int(event.start_time.timestamp())}:F>",
+                inline=True,
+            )
+            location_display = (
+                f"<#{event.channel.id}>"
+                if event.channel
+                else (event.location or "Discord Server")
+            )
             embed.add_field(name="📍 Địa điểm", value=location_display, inline=True)
-            embed.add_field(name="🔗 Chi tiết Event", value=f"[Bấm để xem Event trên server]({event.url})", inline=False)
-            
+            embed.add_field(
+                name="🔗 Chi tiết Event",
+                value=f"[Bấm để xem Event trên server]({event.url})",
+                inline=False,
+            )
+
             for child in self.children:
                 child.disabled = True
-                
+
             await interaction.edit_original_response(embed=embed, view=self)
 
             # Gửi tin nhắn ping @everyone thông báo về Event mới
-            announcement_location = f"<#{event.channel.id}>" if event.channel else (event.location or "Discord Server")
+            announcement_location = (
+                f"<#{event.channel.id}>"
+                if event.channel
+                else (event.location or "Discord Server")
+            )
             announcement = (
                 f"@everyone 📢 **THÔNG BÁO EVENT MỚI!**\n"
                 f"Một event/task vừa được phê duyệt và khởi tạo:\n"
@@ -280,27 +343,31 @@ class ProposedActionView(discord.ui.View):
             logger.error("Lỗi phân quyền khi tạo Discord Guild Scheduled Event.")
             await interaction.followup.send(
                 "❌ Thư Ký Kim không có quyền tạo Event. Vui lòng cấp quyền `Quản lý Event` (Manage Events) cho bot.",
-                ephemeral=True
+                ephemeral=True,
             )
         except Exception as e:
             logger.error(f"Lỗi khi phê duyệt tạo event: {e}", exc_info=True)
-            await interaction.followup.send(f"❌ Đã xảy ra lỗi khi tạo event: {e}", ephemeral=True)
+            await interaction.followup.send(
+                f"❌ Đã xảy ra lỗi khi tạo event: {e}", ephemeral=True
+            )
 
     @discord.ui.button(label="Reject", style=discord.ButtonStyle.red, emoji="✖️")
     async def reject(self, interaction: discord.Interaction, button: discord.ui.Button):
         await interaction.response.defer()
-        
+
         embed = discord.Embed(
             title="❌ Bản Nháp Bị Hủy Bỏ",
             description=f"Bản nháp event này đã bị hủy bởi {interaction.user.mention}.",
-            color=0xED4245  # Đỏ
+            color=0xED4245,  # Đỏ
         )
-        
+
         for child in self.children:
             child.disabled = True
-            
+
         await interaction.edit_original_response(embed=embed, view=self)
-        await interaction.channel.send(f"❌ Đã hủy yêu cầu tạo event: **{self.action.event_name}**.")
+        await interaction.channel.send(
+            f"❌ Đã hủy yêu cầu tạo event: **{self.action.event_name}**."
+        )
 
     @discord.ui.button(label="Edit", style=discord.ButtonStyle.secondary, emoji="✏️")
     async def edit(self, interaction: discord.Interaction, button: discord.ui.Button):
@@ -310,22 +377,36 @@ class ProposedActionView(discord.ui.View):
 
 class EventCog(commands.Cog):
     """Cog xử lý tạo Discord Event từ ngôn ngữ tự nhiên sử dụng AI Agent."""
+
     def __init__(self, bot):
         self.bot = bot
 
-    @app_commands.command(name="kim", description="Yêu cầu Thư Ký Kim lập event/task bằng ngôn ngữ tự nhiên")
-    @app_commands.describe(request="Nội dung yêu cầu (ví dụ: Tạo một task thiết kế giao diện mobile hạn chót thứ sáu này gán cho @Duy)")
+    @app_commands.command(
+        name="kim",
+        description="Yêu cầu Thư Ký Kim lập event/task bằng ngôn ngữ tự nhiên",
+    )
+    @app_commands.describe(
+        request="Nội dung yêu cầu (ví dụ: Tạo một task thiết kế giao diện mobile hạn chót thứ sáu này gán cho @Duy)"
+    )
     async def kim(self, interaction: discord.Interaction, request: str):
         # Tránh lỗi Discord timeout sau 3 giây bằng defer()
         await interaction.response.defer()
-        
+
         # Lấy thông tin thời gian hiện tại ở múi giờ GMT+7 (Việt Nam)
         tz = datetime.timezone(datetime.timedelta(hours=7))
         now = datetime.datetime.now(tz)
-        days = ["Thứ Hai", "Thứ Ba", "Thứ Tư", "Thứ Năm", "Thứ Sáu", "Thứ Bảy", "Chủ Nhật"]
+        days = [
+            "Thứ Hai",
+            "Thứ Ba",
+            "Thứ Tư",
+            "Thứ Năm",
+            "Thứ Sáu",
+            "Thứ Bảy",
+            "Chủ Nhật",
+        ]
         weekday = days[now.weekday()]
         current_time_info = f"Hôm nay là {weekday}, ngày {now.strftime('%d/%m/%Y')}. Lúc này là {now.strftime('%H:%M:%S')} (UTC+7)."
-        
+
         # Thu thập danh sách user trong server dạng {id: display_name}
         user_list = {}
         channel_list = {}
@@ -337,7 +418,7 @@ class EventCog(commands.Cog):
                         user_list[str(member.id)] = member.display_name
             except Exception as e:
                 logger.warning(f"Lỗi khi fetch members: {e}. Sử dụng cache rỗng.")
-            
+
             try:
                 # Thu thập danh sách phòng thoại (voice channels)
                 for channel in interaction.guild.voice_channels:
@@ -351,11 +432,15 @@ class EventCog(commands.Cog):
                 prompt=request,
                 user_list=user_list,
                 channel_list=channel_list,
-                current_time_info=current_time_info
+                current_time_info=current_time_info,
             )
-            
+
             # Kiểm tra xem AI có hiểu ý người dùng không
-            if not action.is_valid_event or not action.event_name or not action.scheduled_start_time:
+            if (
+                not action.is_valid_event
+                or not action.event_name
+                or not action.scheduled_start_time
+            ):
                 await interaction.followup.send("Kim chưa hiểu rõ ý")
                 return
 
@@ -366,4 +451,7 @@ class EventCog(commands.Cog):
 
         except Exception as e:
             logger.error(f"Lỗi hệ thống khi xử lý câu lệnh /kim: {e}", exc_info=True)
-            await interaction.followup.send("❌ Hệ thống gặp lỗi khi xử lý yêu cầu. Vui lòng thử lại sau.", ephemeral=True)
+            await interaction.followup.send(
+                "❌ Hệ thống gặp lỗi khi xử lý yêu cầu. Vui lòng thử lại sau.",
+                ephemeral=True,
+            )

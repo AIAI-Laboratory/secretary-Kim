@@ -6,22 +6,31 @@ from app.core.logger import get_logger
 
 logger = get_logger(__name__)
 
+
 class EventAgentService:
     def __init__(self):
         if not settings.GEMINI_API_KEY:
-            logger.warning("GEMINI_API_KEY chưa được cấu hình. AI Agent có thể gặp lỗi khi chạy.")
+            logger.warning(
+                "GEMINI_API_KEY chưa được cấu hình. AI Agent có thể gặp lỗi khi chạy."
+            )
         self.client = genai.Client(api_key=settings.GEMINI_API_KEY or None)
 
-    async def parse_prompt(self, prompt: str, user_list: dict[str, str], channel_list: dict[str, str], current_time_info: str) -> ProposedAction:
+    async def parse_prompt(
+        self,
+        prompt: str,
+        user_list: dict[str, str],
+        channel_list: dict[str, str],
+        current_time_info: str,
+    ) -> ProposedAction:
         """
         Phân tích câu lệnh tự nhiên của người dùng bằng Gemini và trích xuất thành ProposedAction.
-        
+
         Args:
             prompt: Câu lệnh tự nhiên của người dùng (vd: "Tạo một task thiết kế giao diện mobile hạn chót là thứ sáu này gán cho Duy")
             user_list: Danh sách user trong server dạng {id: display_name}
             channel_list: Danh sách phòng thoại (voice channels) trong server dạng {id: channel_name}
             current_time_info: Thông tin ngày giờ hiện tại để phân tích mốc thời gian tương đối
-            
+
         Returns:
             ProposedAction: Đối tượng chứa thông tin event/task đã trích xuất, hoặc đối tượng có is_valid_event=False nếu có lỗi.
         """
@@ -48,15 +57,17 @@ class EventAgentService:
                     system_instruction=system_instruction,
                     response_mime_type="application/json",
                     response_schema=ProposedAction,
-                    temperature=0.1
-                )
+                    temperature=0.1,
+                ),
             )
-            
+
             json_text = response.text
             logger.debug(f"Kết quả trả về từ Gemini: {json_text}")
-            
+
             action = ProposedAction.model_validate_json(json_text)
             return action
         except Exception as e:
-            logger.error(f"Lỗi khi xử lý ngôn ngữ tự nhiên bằng Gemini: {e}", exc_info=True)
+            logger.error(
+                f"Lỗi khi xử lý ngôn ngữ tự nhiên bằng Gemini: {e}", exc_info=True
+            )
             return ProposedAction(is_valid_event=False)

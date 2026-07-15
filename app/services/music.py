@@ -2,6 +2,7 @@ import yt_dlp
 import asyncio
 from urllib.parse import urlparse, parse_qs, urlencode, urlunparse
 
+
 def clean_youtube_url(url: str) -> str:
     """Loại bỏ các tham số playlist hoặc tracking thừa trong link YouTube."""
     try:
@@ -19,23 +20,24 @@ def clean_youtube_url(url: str) -> str:
         pass
     return url
 
+
 class MusicService:
     def __init__(self):
         # Cấu hình yt-dlp tối ưu cho việc trích xuất audio stream
         self.ydl_opts = {
-            'format': 'bestaudio/best',
-            'quiet': True,
-            'no_warnings': True,
-            'default_search': 'ytsearch',
-            'source_address': '0.0.0.0',  # Ràng buộc với IPv4 tránh các lỗi mạng IPv6
-            'nocheckcertificate': True,
-            'noplaylist': True,  # Chỉ lấy thông tin của video đơn lẻ, bỏ qua playlist
+            "format": "bestaudio/best",
+            "quiet": True,
+            "no_warnings": True,
+            "default_search": "ytsearch",
+            "source_address": "0.0.0.0",  # Ràng buộc với IPv4 tránh các lỗi mạng IPv6
+            "nocheckcertificate": True,
+            "noplaylist": True,  # Chỉ lấy thông tin của video đơn lẻ, bỏ qua playlist
         }
-        
+
         # Cấu hình FFmpeg để stream mượt mà, hỗ trợ tự động kết nối lại khi mạng gián đoạn
         self.ffmpeg_options = {
-            'before_options': '-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5',
-            'options': '-vn',
+            "before_options": "-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5",
+            "options": "-vn",
         }
 
     async def extract_info(self, query: str) -> dict:
@@ -48,11 +50,11 @@ class MusicService:
         def _extract():
             with yt_dlp.YoutubeDL(self.ydl_opts) as ydl:
                 info = ydl.extract_info(cleaned_query, download=False)
-                if 'entries' in info:
+                if "entries" in info:
                     # Nếu là kết quả tìm kiếm, lấy phần tử đầu tiên
-                    if not info['entries']:
+                    if not info["entries"]:
                         raise Exception("Không tìm thấy kết quả tìm kiếm phù hợp.")
-                    info = info['entries'][0]
+                    info = info["entries"][0]
                 return info
 
         return await asyncio.to_thread(_extract)
