@@ -3,7 +3,6 @@ import random
 import io
 import httpx
 from typing import Dict, Any, Tuple, Optional
-from PIL import Image
 from google import genai
 from google.genai import types
 from app.core.config import settings
@@ -395,115 +394,6 @@ class GachaService:
         except Exception as e:
             logger.error(f"Gemini Gacha LLM generation failed: {e}", exc_info=True)
             raise e
-
-    async def call_cloudflare_image_gen(
-        self, visual_prompt: str, types_list: Optional[list[str]] = None
-    ) -> bytes:
-        """Call PixelLab Service to generate a pixel art image."""
-        return await self.pixellab_service.generate_pixel_art(
-            prompt=visual_prompt,
-            model="pixflux",
-            width=256,
-            height=256,
-            transparent=True,
-        )
-
-    async def call_cloudflare_imagen4(self, visual_prompt: str) -> bytes:
-        """Call Cloudflare Workers AI using Google's Imagen 4 model.
-
-        Generates a 1:1 image. The model is prompted to render the creature
-        on a pure white background so the flood-fill removal step produces
-        clean alpha masks.
-        Returns raw image bytes.
-        """
-        url = f"https://api.cloudflare.com/client/v4/accounts/{settings.CLOUDFLARE_ACCOUNT_ID}/ai/run"
-        headers = {
-            "Authorization": f"Bearer {settings.CLOUDFLARE_API_TOKEN}",
-            "Content-Type": "application/json",
-        }
-
-        master_suffix = (
-            ", official 2D Pokémon-style illustration, Ken Sugimori watercolor art style, "
-            "cute chibi anime creature design, thick bold black outline, heavy contour inking, "
-            "clean crisp character silhouette, full body front-facing view, "
-            "flat cel-shaded coloring with simple soft highlights, "
-            "pure white background, isolated character only, no background elements, no scenery "
-            "--no realistic rendering, no 3D, no photorealism, no thin lines, no missing outline, "
-            "no shadow on ground, no texture overlays, no noise"
-        )
-        final_prompt = f"{visual_prompt}{master_suffix}"
-
-        payload = {
-            "model": settings.CLOUDFLARE_IMAGE_MODEL,
-            "input": {"prompt": final_prompt, "aspect_ratio": "1:1"},
-        }
-
-        logger.info(
-            f"Calling Cloudflare {settings.CLOUDFLARE_IMAGE_MODEL} for image generation."
-        )
-        async with httpx.AsyncClient(timeout=120.0) as client:
-            response = await client.post(url, headers=headers, json=payload)
-            if response.status_code != 200:
-                raise Exception(
-                    f"Cloudflare Imagen-4 API error ({response.status_code}): {response.text}"
-                )
-            result = response.json()
-            image_url = result.get("result", {}).get("image", "")
-            if not image_url:
-                raise Exception(
-                    f"Failed to find image URL in Imagen-4 response: {result}"
-                )
-
-            # Download the image from the returned URL
-            logger.info(f"Imagen-4 returned image URL: {image_url} — downloading...")
-            img_response = await client.get(image_url, timeout=60.0)
-            if img_response.status_code != 200:
-                raise Exception(
-                    f"Failed to download Imagen-4 image ({img_response.status_code}): {img_response.text}"
-                )
-            return img_response.content
-
-    def _remove_background(self, img: Image.Image, tolerance: int = 25) -> Image.Image:
-        """Automatically detect solid background from corners and make it transparent."""
-        img = img.convert("RGBA")
-        width, height = img.size
-        pixels = img.load()
-
-        visited = set()
-        queue = []
-
-        # Start flood fill from the 4 corners
-        corners = [(0, 0), (width - 1, 0), (0, height - 1), (width - 1, height - 1)]
-
-        for c in corners:
-            if c in visited:
-                continue
-            target_color = pixels[c]
-            queue.append(c)
-            visited.add(c)
-
-            while queue:
-                x, y = queue.pop(0)
-
-                # Make background pixel transparent
-                r, g, b, a = pixels[x, y]
-                pixels[x, y] = (r, g, b, 0)
-
-                for dx, dy in [(-1, 0), (1, 0), (0, -1), (0, 1)]:
-                    nx, ny = x + dx, y + dy
-                    if 0 <= nx < width and 0 <= ny < height and (nx, ny) not in visited:
-                        nr, ng, nb, na = pixels[nx, ny]
-                        tr, tg, tb, ta = target_color
-
-                        dist = ((nr - tr) ** 2 + (ng - tg) ** 2 + (nb - tb) ** 2) ** 0.5
-                        if dist <= tolerance:
-                            visited.add((nx, ny))
-                            queue.append((nx, ny))
-        return img
-
-    def make_pixel_art(self, image_bytes: bytes) -> bytes:
-        """Return the original image bytes unmodified, bypassing low resolution conversion."""
-        return image_bytes
 
     async def generate_evolution_image(
         self, prompt: str, prev_img_url: Optional[str]

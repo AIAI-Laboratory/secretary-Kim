@@ -13,7 +13,6 @@ from app.agent.skills.gacha_skill import GachaSkill
 from app.agent.core import KimAgent
 from app.presentation.discord_bot import MusicBot
 from app.services.pixellab import PixelLabService
-from app.agent.skills.pixellab_skill import PixelLabSkill
 
 
 class Container(containers.DeclarativeContainer):
@@ -50,10 +49,6 @@ class Container(containers.DeclarativeContainer):
 
     gacha_skill = providers.Singleton(
         GachaSkill, gacha_service=gacha_service, pomodoro_service=pomodoro_service
-    )
-
-    pixellab_skill = providers.Singleton(
-        PixelLabSkill, pixellab_service=pixellab_service
     )
 
     # Central AI Agent
