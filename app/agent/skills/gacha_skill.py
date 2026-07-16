@@ -146,15 +146,18 @@ class GachaSkill(BaseSkill):
 
         elif function_name == "roll_gacha":
             db = await client.db_service.get_db()
-            user_profile = await self.gacha_service.check_or_create_user(
-                db, context.user_id
-            )
-            async with db.execute(
-                "SELECT attendance_coins FROM users WHERE discord_id = ?",
-                (context.user_id,),
-            ) as cursor:
-                coins_row = await cursor.fetchone()
-            coins = coins_row[0] if coins_row else 100
+            try:
+                user_profile = await self.gacha_service.check_or_create_user(
+                    db, context.user_id
+                )
+                async with db.execute(
+                    "SELECT attendance_coins FROM users WHERE discord_id = ?",
+                    (context.user_id,),
+                ) as cursor:
+                    coins_row = await cursor.fetchone()
+                coins = coins_row[0] if coins_row else 100
+            finally:
+                await db.close()
 
             if coins < 100:
                 return SkillResult(

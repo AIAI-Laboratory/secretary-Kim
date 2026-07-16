@@ -272,11 +272,14 @@ class GachaCog(commands.Cog):
         try:
             # 2. Verify currency (safe now that we've responded)
             db = await self.bot.db_service.get_db()
-            async with db.execute(
-                "SELECT attendance_coins FROM users WHERE discord_id = ?", (user_id,)
-            ) as cursor:
-                coins_row = await cursor.fetchone()
-            coins = coins_row[0] if coins_row else 100
+            try:
+                async with db.execute(
+                    "SELECT attendance_coins FROM users WHERE discord_id = ?", (user_id,)
+                ) as cursor:
+                    coins_row = await cursor.fetchone()
+                coins = coins_row[0] if coins_row else 100
+            finally:
+                await db.close()
 
             if coins < 100:
                 embed = discord.Embed(
@@ -411,8 +414,17 @@ class GachaCog(commands.Cog):
             return
 
         db = await self.bot.db_service.get_db()
-        user_profile = await self.gacha_service.check_or_create_user(db, user_id)
-        active_id = user_profile["active_pet_id"]
+        try:
+            user_profile = await self.gacha_service.check_or_create_user(db, user_id)
+            active_id = user_profile["active_pet_id"]
+
+            async with db.execute(
+                "SELECT attendance_coins FROM users WHERE discord_id = ?", (user_id,)
+            ) as cursor:
+                coins_row = await cursor.fetchone()
+            coins = coins_row[0] if coins_row else 100
+        finally:
+            await db.close()
 
         embed = discord.Embed(
             title=f"🎒 collection: {interaction.user.display_name}'s Companions",
@@ -428,11 +440,6 @@ class GachaCog(commands.Cog):
             )
 
         embed.description = "\n".join(lines)
-        async with db.execute(
-            "SELECT attendance_coins FROM users WHERE discord_id = ?", (user_id,)
-        ) as cursor:
-            coins_row = await cursor.fetchone()
-        coins = coins_row[0] if coins_row else 100
 
         embed.set_footer(text=f"Total: {len(pets)} pets | Coins: {coins}")
 
@@ -452,11 +459,14 @@ class GachaCog(commands.Cog):
 
         # Verify coins first
         db = await self.bot.db_service.get_db()
-        async with db.execute(
-            "SELECT attendance_coins FROM users WHERE discord_id = ?", (user_id,)
-        ) as cursor:
-            row = await cursor.fetchone()
-        coins = row[0] if row else 100
+        try:
+            async with db.execute(
+                "SELECT attendance_coins FROM users WHERE discord_id = ?", (user_id,)
+            ) as cursor:
+                row = await cursor.fetchone()
+            coins = row[0] if row else 100
+        finally:
+            await db.close()
 
         if coins < 20:
             embed = discord.Embed(
