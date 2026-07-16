@@ -5,7 +5,7 @@ description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
-    "dependency-injector>=4.49.0",
+    "dependency-injector>=4.49.1",
     "discord-py>=2.7.1",
     "google-genai>=2.8.0",
     "httpx>=0.28.1",
