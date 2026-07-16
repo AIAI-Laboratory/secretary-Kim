@@ -19,6 +19,7 @@ class DatabaseService:
             logger.info(f"Created database directory: {db_dir}")
 
         async with aiosqlite.connect(self.db_path) as db:
+            await db.execute("PRAGMA journal_mode=WAL;")
             # Create users table
             await db.execute("""
                 CREATE TABLE IF NOT EXISTS users (
@@ -91,4 +92,4 @@ class DatabaseService:
 
     async def get_db(self) -> aiosqlite.Connection:
         """Get an active aiosqlite connection."""
-        return await aiosqlite.connect(self.db_path)
+        return await aiosqlite.connect(self.db_path, timeout=30.0)

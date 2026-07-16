@@ -3,6 +3,7 @@ import random
 import io
 import httpx
 from typing import Dict, Any, Tuple, Optional
+import aiosqlite
 from google import genai
 from google.genai import types
 from app.core.config import settings
@@ -477,165 +478,179 @@ class GachaService:
         """
         db = await self.db_service.get_db()
         try:
-            # 1. User check and Coins verification
-            user = await self.check_or_create_user(db, discord_id)
-            async with db.execute(
-                "SELECT attendance_coins FROM users WHERE discord_id = ?", (discord_id,)
-            ) as cursor:
-                coins_row = await cursor.fetchone()
-            coins = coins_row[0] if coins_row else 100
+            try:
+                # 1. User check and Coins verification
+                user = await self.check_or_create_user(db, discord_id)
+                async with db.execute(
+                    "SELECT attendance_coins FROM users WHERE discord_id = ?", (discord_id,)
+                ) as cursor:
+                    coins_row = await cursor.fetchone()
+                coins = coins_row[0] if coins_row else 100
 
-            if coins < 100:
-                raise ValueError(
-                    f"Not enough Coins! (You have: {coins} Coins, need 100 Coins for Gacha)"
-                )
+                if coins < 100:
+                    raise ValueError(
+                        f"Not enough Coins! (You have: {coins} Coins, need 100 Coins for Gacha)"
+                    )
 
-            # Deduct Coins
-            await db.execute(
-                "UPDATE users SET attendance_coins = attendance_coins - 100 WHERE discord_id = ?",
-                (discord_id,),
-            )
-
-            # 2. Roll random attributes (or use pre-rolled)
-            attrs = pre_rolled_attrs or self._roll_attributes()
-
-            # 3. Call LLM to generate description JSON
-            design = await self._call_gemini_llm(attrs)
-
-            # 4. Generate Stage 1 Image
-            stage1_prompt = design["stage1"]["visual_prompt"]
-            pixel_bytes = await self.pixellab_service.generate_pixel_art(
-                prompt=stage1_prompt,
-                model="pixflux",
-                width=128,
-                height=128,
-                transparent=True,
-            )
-            hd_bytes = pixel_bytes
-
-            # 6. Save pet to database
-            stage1 = design.get("stage1") or {}
-            stage1_name = stage1.get("name")
-            stage1_desc = stage1.get("description")
-            stage1_prompt = stage1.get("visual_prompt")
-
-            stage2 = design.get("stage2") or {}
-            stage2_name = stage2.get("name", "")
-            stage2_desc = stage2.get("description", "")
-            stage2_prompt = stage2.get("visual_prompt", "")
-
-            stage3 = design.get("stage3") or {}
-            stage3_name = stage3.get("name", "")
-            stage3_desc = stage3.get("description", "")
-            stage3_prompt = stage3.get("visual_prompt", "")
-
-            mega = design.get("mega") or {}
-            mega_name = mega.get("name")
-            mega_desc = mega.get("description")
-            mega_prompt = mega.get("visual_prompt")
-
-            cursor = await db.execute(
-                """
-                INSERT INTO pets (
-                    user_id, name, rarity, type1, type2, level, exp, hp, stage, concept, mega_capable,
-                    stage1_name, stage1_desc, stage1_prompt,
-                    stage2_name, stage2_desc, stage2_prompt,
-                    stage3_name, stage3_desc, stage3_prompt,
-                    mega_name, mega_desc, mega_prompt
-                ) VALUES (?, ?, ?, ?, ?, 1, 0, 100, 1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """,
-                (
-                    discord_id,
-                    design["name"],
-                    attrs["rarity"],
-                    attrs["type1"],
-                    attrs["type2"],
-                    attrs["concept"],
-                    attrs["mega_capable"],
-                    stage1_name,
-                    stage1_desc,
-                    stage1_prompt,
-                    stage2_name,
-                    stage2_desc,
-                    stage2_prompt,
-                    stage3_name,
-                    stage3_desc,
-                    stage3_prompt,
-                    mega_name,
-                    mega_desc,
-                    mega_prompt,
-                ),
-            )
-
-            pet_id = cursor.lastrowid
-
-            # Automatically set active pet if the user does not have one
-            if user["active_pet_id"] is None:
+                # Deduct Coins
                 await db.execute(
-                    "UPDATE users SET active_pet_id = ? WHERE discord_id = ?",
-                    (pet_id, discord_id),
+                    "UPDATE users SET attendance_coins = attendance_coins - 100 WHERE discord_id = ?",
+                    (discord_id,),
                 )
 
-            await db.commit()
+                # 2. Roll random attributes (or use pre-rolled)
+                attrs = pre_rolled_attrs or self._roll_attributes()
 
-            # Retrieve final stored details
-            pet_dict = {
-                "id": pet_id,
-                "name": design["name"],
-                "rarity": attrs["rarity"],
-                "type1": attrs["type1"],
-                "type2": attrs["type2"],
-                "level": 1,
-                "exp": 0,
-                "hp": 100,
-                "stage": 1,
-                "concept": attrs["concept"],
-                "mega_capable": bool(attrs["mega_capable"]),
-                "stage1_name": stage1_name,
-                "stage1_desc": stage1_desc,
-                "active": (
-                    user["active_pet_id"] is None or user["active_pet_id"] == pet_id
-                ),
-            }
+                # 3. Call LLM to generate description JSON
+                design = await self._call_gemini_llm(attrs)
 
-            logger.info(
-                f"User {discord_id} rolled new pet: {design['name']} (ID: {pet_id})"
-            )
-            return pet_id, pet_dict, hd_bytes, pixel_bytes
+                # 4. Generate Stage 1 Image
+                stage1_prompt = design["stage1"]["visual_prompt"]
+                pixel_bytes = await self.pixellab_service.generate_pixel_art(
+                    prompt=stage1_prompt,
+                    model="pixflux",
+                    width=128,
+                    height=128,
+                    transparent=True,
+                )
+                hd_bytes = pixel_bytes
 
-        except Exception as e:
-            await db.rollback()
-            logger.error(f"Gacha roll failed: {e}", exc_info=True)
-            raise e
+                # 6. Save pet to database
+                stage1 = design.get("stage1") or {}
+                stage1_name = stage1.get("name")
+                stage1_desc = stage1.get("description")
+                stage1_prompt = stage1.get("visual_prompt")
+
+                stage2 = design.get("stage2") or {}
+                stage2_name = stage2.get("name", "")
+                stage2_desc = stage2.get("description", "")
+                stage2_prompt = stage2.get("visual_prompt", "")
+
+                stage3 = design.get("stage3") or {}
+                stage3_name = stage3.get("name", "")
+                stage3_desc = stage3.get("description", "")
+                stage3_prompt = stage3.get("visual_prompt", "")
+
+                mega = design.get("mega") or {}
+                mega_name = mega.get("name")
+                mega_desc = mega.get("description")
+                mega_prompt = mega.get("visual_prompt")
+
+                cursor = await db.execute(
+                    """
+                    INSERT INTO pets (
+                        user_id, name, rarity, type1, type2, level, exp, hp, stage, concept, mega_capable,
+                        stage1_name, stage1_desc, stage1_prompt,
+                        stage2_name, stage2_desc, stage2_prompt,
+                        stage3_name, stage3_desc, stage3_prompt,
+                        mega_name, mega_desc, mega_prompt
+                    ) VALUES (?, ?, ?, ?, ?, 1, 0, 100, 1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                    (
+                        discord_id,
+                        design["name"],
+                        attrs["rarity"],
+                        attrs["type1"],
+                        attrs["type2"],
+                        attrs["concept"],
+                        attrs["mega_capable"],
+                        stage1_name,
+                        stage1_desc,
+                        stage1_prompt,
+                        stage2_name,
+                        stage2_desc,
+                        stage2_prompt,
+                        stage3_name,
+                        stage3_desc,
+                        stage3_prompt,
+                        mega_name,
+                        mega_desc,
+                        mega_prompt,
+                    ),
+                )
+
+                pet_id = cursor.lastrowid
+
+                # Automatically set active pet if the user does not have one
+                if user["active_pet_id"] is None:
+                    await db.execute(
+                        "UPDATE users SET active_pet_id = ? WHERE discord_id = ?",
+                        (pet_id, discord_id),
+                    )
+
+                await db.commit()
+
+                # Retrieve final stored details
+                pet_dict = {
+                    "id": pet_id,
+                    "name": design["name"],
+                    "rarity": attrs["rarity"],
+                    "type1": attrs["type1"],
+                    "type2": attrs["type2"],
+                    "level": 1,
+                    "exp": 0,
+                    "hp": 100,
+                    "stage": 1,
+                    "concept": attrs["concept"],
+                    "mega_capable": bool(attrs["mega_capable"]),
+                    "stage1_name": stage1_name,
+                    "stage1_desc": stage1_desc,
+                    "active": (
+                        user["active_pet_id"] is None or user["active_pet_id"] == pet_id
+                    ),
+                }
+
+                logger.info(
+                    f"User {discord_id} rolled new pet: {design['name']} (ID: {pet_id})"
+                )
+                return pet_id, pet_dict, hd_bytes, pixel_bytes
+
+            except Exception as e:
+                await db.rollback()
+                logger.error(f"Gacha roll failed: {e}", exc_info=True)
+                raise e
+        finally:
+            await db.close()
 
     async def update_pet_image(
         self, pet_id: int, stage: int, hd_url: str, pixel_url: str
     ) -> None:
         """Update database with generated image URLs for a specific evolution stage."""
         db = await self.db_service.get_db()
-        if stage == 1:
-            await db.execute(
-                "UPDATE pets SET stage1_img = ? WHERE id = ?", (pixel_url, pet_id)
-            )  # We use the pixel URL as default, can keep HD in stage description
-        elif stage == 2:
-            await db.execute(
-                "UPDATE pets SET stage2_img = ? WHERE id = ?", (pixel_url, pet_id)
-            )
-        elif stage == 3:
-            await db.execute(
-                "UPDATE pets SET stage3_img = ? WHERE id = ?", (pixel_url, pet_id)
-            )
-        elif stage == 4:
-            await db.execute(
-                "UPDATE pets SET mega_img = ? WHERE id = ?", (pixel_url, pet_id)
-            )
+        try:
+            if stage == 1:
+                await db.execute(
+                    "UPDATE pets SET stage1_img = ? WHERE id = ?", (pixel_url, pet_id)
+                )  # We use the pixel URL as default, can keep HD in stage description
+            elif stage == 2:
+                await db.execute(
+                    "UPDATE pets SET stage2_img = ? WHERE id = ?", (pixel_url, pet_id)
+                )
+            elif stage == 3:
+                await db.execute(
+                    "UPDATE pets SET stage3_img = ? WHERE id = ?", (pixel_url, pet_id)
+                )
+            elif stage == 4:
+                await db.execute(
+                    "UPDATE pets SET mega_img = ? WHERE id = ?", (pixel_url, pet_id)
+                )
 
-        # Store HD image in an extra lookup or logging channel if needed, or we just store pixel URL in standard. Let's store both in separate metadata fields if we want, but keeping it simple: stageX_img stores the pixelated image to display in Discord chat.
-        await db.commit()
+            # Store HD image in an extra lookup or logging channel if needed, or we just store pixel URL in standard. Let's store both in separate metadata fields if we want, but keeping it simple: stageX_img stores the pixelated image to display in Discord chat.
+            await db.commit()
+        finally:
+            await db.close()
 
-    async def get_active_pet(self, discord_id: str) -> Optional[Dict[str, Any]]:
+    async def get_active_pet(self, discord_id: str, db: Optional[aiosqlite.Connection] = None) -> Optional[Dict[str, Any]]:
         """Retrieve active pet details for a user."""
-        db = await self.db_service.get_db()
+        if db is None:
+            local_db = await self.db_service.get_db()
+            try:
+                return await self._get_active_pet_internal(local_db, discord_id)
+            finally:
+                await local_db.close()
+        return await self._get_active_pet_internal(db, discord_id)
+
+    async def _get_active_pet_internal(self, db: aiosqlite.Connection, discord_id: str) -> Optional[Dict[str, Any]]:
         async with db.execute(
             """
             SELECT u.active_pet_id, p.* 
@@ -656,119 +671,128 @@ class GachaService:
     async def get_user_pets(self, discord_id: str) -> list[Dict[str, Any]]:
         """Retrieve all pets owned by a user."""
         db = await self.db_service.get_db()
-        async with db.execute(
-            "SELECT * FROM pets WHERE user_id = ?", (discord_id,)
-        ) as cursor:
-            rows = await cursor.fetchall()
-        return [self._row_to_pet_dict(r) for r in rows]
+        try:
+            async with db.execute(
+                "SELECT * FROM pets WHERE user_id = ?", (discord_id,)
+            ) as cursor:
+                rows = await cursor.fetchall()
+            return [self._row_to_pet_dict(r) for r in rows]
+        finally:
+            await db.close()
 
     async def set_active_pet(self, discord_id: str, pet_id: int) -> bool:
         """Set a user's active pet."""
         db = await self.db_service.get_db()
-        async with db.execute(
-            "SELECT id FROM pets WHERE id = ? AND user_id = ?", (pet_id, discord_id)
-        ) as cursor:
-            row = await cursor.fetchone()
-        if not row:
-            return False
+        try:
+            async with db.execute(
+                "SELECT id FROM pets WHERE id = ? AND user_id = ?", (pet_id, discord_id)
+            ) as cursor:
+                row = await cursor.fetchone()
+            if not row:
+                return False
 
-        await db.execute(
-            "UPDATE users SET active_pet_id = ? WHERE discord_id = ?",
-            (pet_id, discord_id),
-        )
-        await db.commit()
-        return True
+            await db.execute(
+                "UPDATE users SET active_pet_id = ? WHERE discord_id = ?",
+                (pet_id, discord_id),
+            )
+            await db.commit()
+            return True
+        finally:
+            await db.close()
 
     async def feed_active_pet(
         self, discord_id: str
     ) -> Tuple[bool, str, Optional[Dict[str, Any]]]:
         """Feed a fruit to the active pet. Restores HP or gains XP. Triggers evolution if level/XP milestones met."""
         db = await self.db_service.get_db()
-        # Check user coins (feeding costs 20 Coins)
-        async with db.execute(
-            "SELECT attendance_coins FROM users WHERE discord_id = ?", (discord_id,)
-        ) as cursor:
-            coins_row = await cursor.fetchone()
-        coins = coins_row[0] if coins_row else 100
+        try:
+            # Check user coins (feeding costs 20 Coins)
+            async with db.execute(
+                "SELECT attendance_coins FROM users WHERE discord_id = ?", (discord_id,)
+            ) as cursor:
+                coins_row = await cursor.fetchone()
+            coins = coins_row[0] if coins_row else 100
 
-        if coins < 20:
-            return (
-                False,
-                f"You don't have enough Coins! (You have: {coins} Coins, need 20 Coins to feed).",
-                None,
+            if coins < 20:
+                return (
+                    False,
+                    f"You don't have enough Coins! (You have: {coins} Coins, need 20 Coins to feed).",
+                    None,
+                )
+
+            pet = await self.get_active_pet(discord_id, db=db)
+            if not pet:
+                return False, "You don't have an active pet to feed! Roll one first.", None
+
+            # Check if pet needs healing or XP
+            hp_gained = 0
+            xp_gained = 0
+            message = ""
+
+            new_hp = min(100, pet["hp"] + 20)
+            if pet["hp"] < 100:
+                hp_gained = new_hp - pet["hp"]
+                message += f"Healed {hp_gained} HP. "
+
+            xp_gained = random.randint(15, 30)
+            new_exp = pet["exp"] + xp_gained
+            new_level = pet["level"]
+            message += f"Gained {xp_gained} XP. "
+
+            # Simple leveling logic (e.g. 100 XP per level)
+            level_up = False
+            while new_exp >= 100:
+                new_exp -= 100
+                new_level += 1
+                level_up = True
+
+            if level_up:
+                message += f"🎉 Level up! {pet['name']} is now Level {new_level}! "
+
+            # Evolution checkpoints (Legendary, God, and Sub-Legendary pets do not evolve)
+            new_stage = pet["stage"]
+            evolution_triggered = False
+            evolution_text = ""
+
+            if pet["rarity"] not in ["Legendary", "God", "Sub-Legendary"]:
+                if new_stage == 1 and new_level >= 15:
+                    new_stage = 2
+                    evolution_triggered = True
+                    evolution_text = f"✨ Evolutionary energy is surging! {pet['name']} is evolving into Stage 2: **{pet['stage2_name']}**!"
+                elif new_stage == 2 and new_level >= 36:
+                    new_stage = 3
+                    evolution_triggered = True
+                    evolution_text = f"✨ Evolution! {pet['name']} is evolving into its ultimate form, Stage 3: **{pet['stage3_name']}**!"
+                elif new_stage == 3 and pet["mega_capable"] and new_level >= 50:
+                    # Let's say user needs to feed the pet and it reaches Level 50 to Mega Evolve
+                    new_stage = 4
+                    evolution_triggered = True
+                    evolution_text = f"🌟 MYTHICAL MEGA EVOLUTION! {pet['name']} has transcended into **{pet['mega_name']}**!"
+
+            # Deduct coins and update pet
+            await db.execute(
+                "UPDATE users SET attendance_coins = attendance_coins - 20 WHERE discord_id = ?",
+                (discord_id,),
             )
+            await db.execute(
+                """
+                UPDATE pets 
+                SET hp = ?, level = ?, exp = ?, stage = ? 
+                WHERE id = ?
+            """,
+                (new_hp, new_level, new_exp, new_stage, pet["id"]),
+            )
+            await db.commit()
 
-        pet = await self.get_active_pet(discord_id)
-        if not pet:
-            return False, "You don't have an active pet to feed! Roll one first.", None
+            updated_pet = await self.get_active_pet(discord_id, db=db)
 
-        # Check if pet needs healing or XP
-        hp_gained = 0
-        xp_gained = 0
-        message = ""
+            full_message = f"You fed a Focus Fruit to {pet['name']}. {message}"
+            if evolution_triggered:
+                full_message += f"\n\n{evolution_text}"
 
-        new_hp = min(100, pet["hp"] + 20)
-        if pet["hp"] < 100:
-            hp_gained = new_hp - pet["hp"]
-            message += f"Healed {hp_gained} HP. "
-
-        xp_gained = random.randint(15, 30)
-        new_exp = pet["exp"] + xp_gained
-        new_level = pet["level"]
-        message += f"Gained {xp_gained} XP. "
-
-        # Simple leveling logic (e.g. 100 XP per level)
-        level_up = False
-        while new_exp >= 100:
-            new_exp -= 100
-            new_level += 1
-            level_up = True
-
-        if level_up:
-            message += f"🎉 Level up! {pet['name']} is now Level {new_level}! "
-
-        # Evolution checkpoints (Legendary, God, and Sub-Legendary pets do not evolve)
-        new_stage = pet["stage"]
-        evolution_triggered = False
-        evolution_text = ""
-
-        if pet["rarity"] not in ["Legendary", "God", "Sub-Legendary"]:
-            if new_stage == 1 and new_level >= 15:
-                new_stage = 2
-                evolution_triggered = True
-                evolution_text = f"✨ Evolutionary energy is surging! {pet['name']} is evolving into Stage 2: **{pet['stage2_name']}**!"
-            elif new_stage == 2 and new_level >= 36:
-                new_stage = 3
-                evolution_triggered = True
-                evolution_text = f"✨ Evolution! {pet['name']} is evolving into its ultimate form, Stage 3: **{pet['stage3_name']}**!"
-            elif new_stage == 3 and pet["mega_capable"] and new_level >= 50:
-                # Let's say user needs to feed the pet and it reaches Level 50 to Mega Evolve
-                new_stage = 4
-                evolution_triggered = True
-                evolution_text = f"🌟 MYTHICAL MEGA EVOLUTION! {pet['name']} has transcended into **{pet['mega_name']}**!"
-
-        # Deduct coins and update pet
-        await db.execute(
-            "UPDATE users SET attendance_coins = attendance_coins - 20 WHERE discord_id = ?",
-            (discord_id,),
-        )
-        await db.execute(
-            """
-            UPDATE pets 
-            SET hp = ?, level = ?, exp = ?, stage = ? 
-            WHERE id = ?
-        """,
-            (new_hp, new_level, new_exp, new_stage, pet["id"]),
-        )
-        await db.commit()
-
-        updated_pet = await self.get_active_pet(discord_id)
-
-        full_message = f"You fed a Focus Fruit to {pet['name']}. {message}"
-        if evolution_triggered:
-            full_message += f"\n\n{evolution_text}"
-
-        return True, full_message, updated_pet
+            return True, full_message, updated_pet
+        finally:
+            await db.close()
 
     def _row_to_pet_dict(self, row: tuple) -> Dict[str, Any]:
         """Convert a database row into a structured dictionary."""
