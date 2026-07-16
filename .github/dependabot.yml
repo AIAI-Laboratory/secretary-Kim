@@ -7,3 +7,8 @@ updates:
       day: "sunday"
       time: "22:00"
       timezone: "Asia/Ho_Chi_Minh"
+    groups:
+      dependencies:
+        patterns:
+          - "*"
+
