@@ -159,8 +159,13 @@ class GachaSkill(BaseSkill):
                 # Roll attributes first to ensure compatibility with weights and single-stage pets
                 attrs = self.gacha_service._roll_attributes()
                 # Roll and process
-                pet_id, pet_dict, hd_bytes, pixel_bytes = (
-                    await self.gacha_service.roll_gacha(context.user_id, pre_rolled_attrs=attrs)
+                (
+                    pet_id,
+                    pet_dict,
+                    hd_bytes,
+                    pixel_bytes,
+                ) = await self.gacha_service.roll_gacha(
+                    context.user_id, pre_rolled_attrs=attrs
                 )
 
                 # Upload to hosting channel

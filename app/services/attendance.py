@@ -20,7 +20,9 @@ class AttendanceService:
         self._last_leaderboard_hash: Optional[str] = None
         self._leaderboard_msg_id: Optional[int] = None
 
-    async def get_user_coins(self, discord_id: str, db: Optional[Any] = None) -> Dict[str, Any]:
+    async def get_user_coins(
+        self, discord_id: str, db: Optional[Any] = None
+    ) -> Dict[str, Any]:
         """
         Get the user's current attendance coins and accumulated minutes.
         Creates the user entry with default values if they do not exist in Firebase.
@@ -46,7 +48,9 @@ class AttendanceService:
             "voice_accumulated_minutes": user.get("voice_accumulated_minutes", 0),
         }
 
-    async def get_leaderboard_data(self, limit: int = 10, db: Optional[Any] = None) -> List[Dict[str, Any]]:
+    async def get_leaderboard_data(
+        self, limit: int = 10, db: Optional[Any] = None
+    ) -> List[Dict[str, Any]]:
         """
         Fetch top users ordered by coins, then by accumulated minutes from Firebase.
         Only displays users with > 0 coins or minutes.
@@ -57,14 +61,19 @@ class AttendanceService:
             coins = udata.get("attendance_coins", 0)
             minutes = udata.get("voice_accumulated_minutes", 0)
             if coins > 0 or minutes > 0:
-                leaderboard.append({
-                    "discord_id": uid,
-                    "attendance_coins": coins,
-                    "voice_accumulated_minutes": minutes
-                })
-        
+                leaderboard.append(
+                    {
+                        "discord_id": uid,
+                        "attendance_coins": coins,
+                        "voice_accumulated_minutes": minutes,
+                    }
+                )
+
         # Sort descending by coins, then by accumulated minutes
-        leaderboard.sort(key=lambda x: (x["attendance_coins"], x["voice_accumulated_minutes"]), reverse=True)
+        leaderboard.sort(
+            key=lambda x: (x["attendance_coins"], x["voice_accumulated_minutes"]),
+            reverse=True,
+        )
         return leaderboard[:limit]
 
     async def track_voice_presence(self, bot: discord.Client) -> None:
@@ -102,10 +111,10 @@ class AttendanceService:
                     new_coins = current_coins + 1
 
                     # Update attendance_coins and reset voice_accumulated_minutes to 0
-                    await self.db_service.update_data(f"users/{discord_id}", {
-                        "attendance_coins": new_coins,
-                        "voice_accumulated_minutes": 0
-                    })
+                    await self.db_service.update_data(
+                        f"users/{discord_id}",
+                        {"attendance_coins": new_coins, "voice_accumulated_minutes": 0},
+                    )
                     users_updated = True
 
                     logger.info(
@@ -116,7 +125,9 @@ class AttendanceService:
             # Update the persistent leaderboard
             await self.update_leaderboard_channel(bot)
 
-    async def update_leaderboard_channel(self, bot: discord.Client, db: Optional[Any] = None) -> None:
+    async def update_leaderboard_channel(
+        self, bot: discord.Client, db: Optional[Any] = None
+    ) -> None:
         """
         Builds the current top leaderboard Embed and edits/creates the message in the leaderboard channel.
         Uses auto-discovery to reuse the existing leaderboard message.

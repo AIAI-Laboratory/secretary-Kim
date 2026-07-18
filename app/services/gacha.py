@@ -400,7 +400,7 @@ class GachaService:
                 "attendance_coins": 100,
                 "voice_accumulated_minutes": 0,
                 "next_pet_id": 1,
-                "pets": {}
+                "pets": {},
             }
             await self.db_service.set_data(path, user)
             logger.info(
@@ -429,8 +429,7 @@ class GachaService:
         type2 = selected_types[1] if num_types == 2 else None
 
         rarity = random.choices(
-            ["Common", "Epic", "Legendary", "God"],
-            weights=[50, 20, 10, 5]
+            ["Common", "Epic", "Legendary", "God"], weights=[50, 20, 10, 5]
         )[0]
 
         concept_category = random.choice(list(CONCEPTS.keys()))
@@ -547,7 +546,9 @@ class GachaService:
         pending_gacha = await self.db_service.get_data(pending_path)
 
         if pending_gacha:
-            logger.info(f"Re-using pending gacha design for user {discord_id} from previous timeout/failure.")
+            logger.info(
+                f"Re-using pending gacha design for user {discord_id} from previous timeout/failure."
+            )
             attrs = pending_gacha["attrs"]
             design = pending_gacha["design"]
         else:
@@ -564,16 +565,17 @@ class GachaService:
             design = await self._call_gemini_llm(attrs)
 
             # Save to pending_gacha first before attempting PixelLab
-            await self.db_service.set_data(pending_path, {
-                "attrs": attrs,
-                "design": design
-            })
-            logger.info(f"Saved pending gacha design for user {discord_id} to Firebase.")
+            await self.db_service.set_data(
+                pending_path, {"attrs": attrs, "design": design}
+            )
+            logger.info(
+                f"Saved pending gacha design for user {discord_id} to Firebase."
+            )
 
         # 2. Generate Stage 1 Image via PixelLab (this might fail/timeout)
         stage1 = design.get("stage1") or {}
         stage1_prompt = stage1.get("visual_prompt", "")
-        
+
         try:
             pixel_bytes = await self.pixellab_service.generate_pixel_art(
                 prompt=stage1_prompt,
@@ -585,7 +587,9 @@ class GachaService:
             hd_bytes = pixel_bytes
         except Exception as e:
             # Do NOT delete the pending_gacha node so it remains saved for the next try
-            logger.warning(f"Image generation failed for user {discord_id}. Pending gacha remains saved: {e}")
+            logger.warning(
+                f"Image generation failed for user {discord_id}. Pending gacha remains saved: {e}"
+            )
             raise e
 
         # 3. Save pet details (once image gen succeeds)
@@ -634,7 +638,7 @@ class GachaService:
             "mega_name": mega_name,
             "mega_desc": mega_desc,
             "mega_prompt": mega_prompt,
-            "mega_img": ""
+            "mega_img": "",
         }
 
         user_path = f"users/{discord_id}"
@@ -650,7 +654,7 @@ class GachaService:
                     "attendance_coins": 100,
                     "voice_accumulated_minutes": 0,
                     "next_pet_id": 1,
-                    "pets": {}
+                    "pets": {},
                 }
 
             current_coins = current_data.get("attendance_coins", 100)
@@ -658,7 +662,7 @@ class GachaService:
                 raise ValueError("Insufficient coins")
 
             current_data["attendance_coins"] = current_coins - 100
-            
+
             pet_id = current_data.get("next_pet_id", 1)
             current_data["next_pet_id"] = pet_id + 1
 
@@ -694,9 +698,7 @@ class GachaService:
             "mega_capable": bool(attrs["mega_capable"]),
             "stage1_name": stage1_name,
             "stage1_desc": stage1_desc,
-            "active": (
-                updated_user["active_pet_id"] == pet_id
-            ),
+            "active": (updated_user["active_pet_id"] == pet_id),
         }
 
         # Clear pending path explicitly to be safe
@@ -712,19 +714,18 @@ class GachaService:
     ) -> None:
         """Update database with generated image URLs for a specific evolution stage."""
         pet_path = f"users/{user_id}/pets/{pet_id}"
-        
-        field_map = {
-            1: "stage1_img",
-            2: "stage2_img",
-            3: "stage3_img",
-            4: "mega_img"
-        }
+
+        field_map = {1: "stage1_img", 2: "stage2_img", 3: "stage3_img", 4: "mega_img"}
         img_field = field_map.get(stage)
         if img_field:
             await self.db_service.update_data(pet_path, {img_field: pixel_url})
-            logger.info(f"Updated pet {pet_id} of user {user_id} with image for stage {stage}.")
+            logger.info(
+                f"Updated pet {pet_id} of user {user_id} with image for stage {stage}."
+            )
 
-    async def get_active_pet(self, discord_id: str, db: Optional[Any] = None) -> Optional[Dict[str, Any]]:
+    async def get_active_pet(
+        self, discord_id: str, db: Optional[Any] = None
+    ) -> Optional[Dict[str, Any]]:
         """Retrieve active pet details for a user."""
         user = await self.db_service.get_data(f"users/{discord_id}")
         if not user:
@@ -788,7 +789,9 @@ class GachaService:
 
             active_id = current_data.get("active_pet_id")
             if active_id is None:
-                raise ValueError("You don't have an active pet to feed! Roll one first.")
+                raise ValueError(
+                    "You don't have an active pet to feed! Roll one first."
+                )
 
             pets = current_data.get("pets", {})
             pet = pets.get(str(active_id))
@@ -843,16 +846,18 @@ class GachaService:
 
             # Save outputs
             nonlocal txn_result
-            txn_result.update({
-                "hp_gained": hp_gained,
-                "xp_gained": xp_gained,
-                "level_up": level_up,
-                "evolution_triggered": evolution_triggered,
-                "evolution_text": evolution_text,
-                "new_level": new_level,
-                "pet_id": active_id,
-                "pet_name": pet["name"]
-            })
+            txn_result.update(
+                {
+                    "hp_gained": hp_gained,
+                    "xp_gained": xp_gained,
+                    "level_up": level_up,
+                    "evolution_triggered": evolution_triggered,
+                    "evolution_text": evolution_text,
+                    "new_level": new_level,
+                    "pet_id": active_id,
+                    "pet_name": pet["name"],
+                }
+            )
             return current_data
 
         try:
@@ -870,7 +875,9 @@ class GachaService:
             message += f"Healed {res['hp_gained']} HP. "
         message += f"Gained {res['xp_gained']} XP. "
         if res["level_up"]:
-            message += f"🎉 Level up! {res['pet_name']} is now Level {res['new_level']}! "
+            message += (
+                f"🎉 Level up! {res['pet_name']} is now Level {res['new_level']}! "
+            )
 
         full_message = f"You fed a Focus Fruit to {res['pet_name']}. {message}"
         if res["evolution_triggered"]:

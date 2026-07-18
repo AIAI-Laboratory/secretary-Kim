@@ -19,11 +19,14 @@ class GachaPetDesign(BaseModel):
         description="Stage 1 (baby/basic/only form) design details"
     )
     stage2: Optional[EvolutionStage] = Field(
-        None, description="Stage 2 (evolved/mid form) design details. MUST be null/None for Legendary and God rarities."
+        None,
+        description="Stage 2 (evolved/mid form) design details. MUST be null/None for Legendary and God rarities.",
     )
     stage3: Optional[EvolutionStage] = Field(
-        None, description="Stage 3 (final/epic form) design details. MUST be null/None for Legendary and God rarities."
+        None,
+        description="Stage 3 (final/epic form) design details. MUST be null/None for Legendary and God rarities.",
     )
     mega: Optional[EvolutionStage] = Field(
-        None, description="Mega form design details (None/null if not capable or if Legendary/God)"
+        None,
+        description="Mega form design details (None/null if not capable or if Legendary/God)",
     )

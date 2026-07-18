@@ -20,13 +20,18 @@ class DatabaseService:
             return
 
         # Ensure credentials are provided
-        if not settings.FIREBASE_CREDENTIALS_JSON and not settings.FIREBASE_CREDENTIALS_PATH:
+        if (
+            not settings.FIREBASE_CREDENTIALS_JSON
+            and not settings.FIREBASE_CREDENTIALS_PATH
+        ):
             raise ValueError(
                 "Neither FIREBASE_CREDENTIALS_JSON nor FIREBASE_CREDENTIALS_PATH is set in environment settings."
             )
 
         if not settings.FIREBASE_DATABASE_URL:
-            raise ValueError("FIREBASE_DATABASE_URL is not set in environment settings.")
+            raise ValueError(
+                "FIREBASE_DATABASE_URL is not set in environment settings."
+            )
 
         def _init():
             if not firebase_admin._apps:
@@ -34,18 +39,24 @@ class DatabaseService:
                     try:
                         cred_dict = json.loads(settings.FIREBASE_CREDENTIALS_JSON)
                         cred = credentials.Certificate(cred_dict)
-                        logger.info("Initializing Firebase using FIREBASE_CREDENTIALS_JSON.")
+                        logger.info(
+                            "Initializing Firebase using FIREBASE_CREDENTIALS_JSON."
+                        )
                     except Exception as e:
                         logger.error(f"Failed to parse FIREBASE_CREDENTIALS_JSON: {e}")
                         raise e
                 else:
-                    logger.info(f"Initializing Firebase using key path: {settings.FIREBASE_CREDENTIALS_PATH}")
+                    logger.info(
+                        f"Initializing Firebase using key path: {settings.FIREBASE_CREDENTIALS_PATH}"
+                    )
                     cred = credentials.Certificate(settings.FIREBASE_CREDENTIALS_PATH)
-                
-                firebase_admin.initialize_app(cred, {
-                    'databaseURL': settings.FIREBASE_DATABASE_URL
-                })
-                logger.info(f"Firebase initialized successfully with DB URL: {settings.FIREBASE_DATABASE_URL}")
+
+                firebase_admin.initialize_app(
+                    cred, {"databaseURL": settings.FIREBASE_DATABASE_URL}
+                )
+                logger.info(
+                    f"Firebase initialized successfully with DB URL: {settings.FIREBASE_DATABASE_URL}"
+                )
 
         await asyncio.to_thread(_init)
         self._initialized = True

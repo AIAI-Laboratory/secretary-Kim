@@ -28,13 +28,16 @@ class PomodoroService:
             return False, "You already have an active Pomodoro session!"
 
         now_iso = datetime.datetime.now(datetime.timezone.utc).isoformat()
-        
-        await self.db_service.update_data(f"users/{discord_id}/pomodoro", {
-            "start_time": now_iso,
-            "channel_id": channel_id,
-            "text_channel_id": text_channel_id,
-            "duration_mins": duration_mins
-        })
+
+        await self.db_service.update_data(
+            f"users/{discord_id}/pomodoro",
+            {
+                "start_time": now_iso,
+                "channel_id": channel_id,
+                "text_channel_id": text_channel_id,
+                "duration_mins": duration_mins,
+            },
+        )
 
         logger.info(
             f"User {discord_id} started Pomodoro in voice channel {channel_id} (text channel: {text_channel_id}) for {duration_mins} mins."
@@ -44,7 +47,9 @@ class PomodoroService:
             f"Focus session started! Stay in your voice channel for {duration_mins} minutes to earn rewards.",
         )
 
-    async def get_active_session(self, discord_id: str, db: Optional[Any] = None) -> Optional[Dict[str, Any]]:
+    async def get_active_session(
+        self, discord_id: str, db: Optional[Any] = None
+    ) -> Optional[Dict[str, Any]]:
         """Retrieve the active Pomodoro session details for the user."""
         pomo_data = await self.db_service.get_data(f"users/{discord_id}/pomodoro")
         if not pomo_data or not pomo_data.get("start_time"):
@@ -103,6 +108,6 @@ class PomodoroService:
 
         # Reset session fields in DB
         await self.db_service.delete_data(f"users/{discord_id}/pomodoro")
-        
+
         logger.info(f"User {discord_id} cancelled Pomodoro focus session.")
         return True, "❌ Focus session cancelled."

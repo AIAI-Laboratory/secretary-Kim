@@ -266,7 +266,9 @@ class GachaCog(commands.Cog):
             color=0x5865F2,
         )
         loading_embed.set_image(url=f"attachment://{gif_filename}")
-        loading_msg = await interaction.followup.send(embed=loading_embed, file=loading_file, wait=True)
+        loading_msg = await interaction.followup.send(
+            embed=loading_embed, file=loading_file, wait=True
+        )
 
         try:
             # 2. Verify currency (safe now that we've responded)
@@ -282,9 +284,12 @@ class GachaCog(commands.Cog):
                 return
 
             # 3. Roll Gacha (pass pre-rolled attributes)
-            pet_id, pet_dict, hd_bytes, pixel_bytes = (
-                await self.gacha_service.roll_gacha(user_id, pre_rolled_attrs=attrs)
-            )
+            (
+                pet_id,
+                pet_dict,
+                hd_bytes,
+                pixel_bytes,
+            ) = await self.gacha_service.roll_gacha(user_id, pre_rolled_attrs=attrs)
 
             # 3. Upload images to Discord channel to host them
             image_channel = self.bot.get_channel(settings.GACHA_IMAGE_CHANNEL_ID)
@@ -337,13 +342,13 @@ class GachaCog(commands.Cog):
 
         except Exception as e:
             logger.error(f"Gacha slash command failed: {e}", exc_info=True)
-            
+
             # Check for PixelLab timeout or other PixelLab issues
             if "PixelLabError" in type(e).__name__ or "timeout" in str(e).lower():
                 err_msg = "❌ Cửa hàng triệu hồi thú cưng đang tạm thời đóng cửa do họa sĩ vẽ pet bị ngất xỉu (API Timeout/Error). Vui lòng thử lại sau nhé! 😴"
             else:
                 err_msg = "❌ Failed to roll gacha. AI encountered an error. Please try again."
-                
+
             error_embed = discord.Embed(
                 description=err_msg,
                 color=0xED4245,
