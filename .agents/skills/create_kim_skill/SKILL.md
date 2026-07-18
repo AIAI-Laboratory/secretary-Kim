@@ -69,7 +69,7 @@ class NewFeatureSkill(BaseSkill):
                     success=False,
                     message=f"Error executing action: {str(e)}"
                 )
-                
+
         return SkillResult(
             success=False,
             message=f"Action '{function_name}' not supported by NewFeatureSkill."

@@ -1,6 +1,6 @@
 # AI Agent Framework Documentation
 
-This document describes the design, components, and extensibility patterns of the **Secretary Kim AI Agent Framework**. 
+This document describes the design, components, and extensibility patterns of the **Secretary Kim AI Agent Framework**.
 
 The framework is built using the **Agent-Skill Architecture**, allowing modular development where new features/services can be plugged in as "Skills" without touching the core orchestration logic.
 
@@ -132,7 +132,7 @@ class WeatherSkill(BaseSkill):
             # Implement integration with weather APIs / business service here
             result_msg = f"The weather in {location} is currently sunny, 32°C."
             return SkillResult(success=True, message=result_msg)
-            
+
         return SkillResult(success=False, message=f"Action '{function_name}' not supported.")
 ```
 
