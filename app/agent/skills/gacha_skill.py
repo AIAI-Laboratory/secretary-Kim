@@ -145,19 +145,9 @@ class GachaSkill(BaseSkill):
             )
 
         elif function_name == "roll_gacha":
-            db = await client.db_service.get_db()
-            try:
-                user_profile = await self.gacha_service.check_or_create_user(
-                    db, context.user_id
-                )
-                async with db.execute(
-                    "SELECT attendance_coins FROM users WHERE discord_id = ?",
-                    (context.user_id,),
-                ) as cursor:
-                    coins_row = await cursor.fetchone()
-                coins = coins_row[0] if coins_row else 100
-            finally:
-                await db.close()
+            user_profile = await self.gacha_service.check_or_create_user(None, context.user_id)
+            coins_data = await client.attendance_service.get_user_coins(context.user_id)
+            coins = coins_data["attendance_coins"]
 
             if coins < 100:
                 return SkillResult(
@@ -193,7 +183,7 @@ class GachaSkill(BaseSkill):
                 hd_url = pixel_url
 
                 await self.gacha_service.update_pet_image(
-                    pet_id, stage=1, hd_url=hd_url, pixel_url=pixel_url
+                    context.user_id, pet_id, stage=1, hd_url=hd_url, pixel_url=pixel_url
                 )
 
                 type_str = format_types(pet_dict["type1"], pet_dict["type2"])
@@ -230,9 +220,13 @@ class GachaSkill(BaseSkill):
 
             except Exception as e:
                 logger.error(f"Gacha skill execution failed: {e}", exc_info=True)
+                if "PixelLabError" in type(e).__name__ or "timeout" in str(e).lower():
+                    err_msg = "❌ Cửa hàng triệu hồi thú cưng đang tạm thời đóng cửa do họa sĩ vẽ pet bị ngất xỉu (API Timeout/Error). Vui lòng thử lại sau nhé! 😴"
+                else:
+                    err_msg = f"Cloudflare AI failed to process this roll: {e}"
                 return SkillResult(
                     success=False,
-                    message=f"Cloudflare AI failed to process this roll: {e}",
+                    message=err_msg,
                 )
 
         elif function_name == "view_active_pet":
@@ -324,6 +318,7 @@ class GachaSkill(BaseSkill):
                     hd_url = pixel_url
 
                     await self.gacha_service.update_pet_image(
+                        context.user_id,
                         updated_pet["id"],
                         stage=new_stage,
                         hd_url=hd_url,

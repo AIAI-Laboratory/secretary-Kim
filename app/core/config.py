@@ -23,5 +23,10 @@ class Settings(BaseSettings):
     CLOUDFLARE_IMAGE_MODEL: str = "google/imagen-4"
     DATABASE_PATH: str = "data/database.db"
 
+    # Firebase configuration
+    FIREBASE_CREDENTIALS_JSON: str = ""
+    FIREBASE_CREDENTIALS_PATH: str = "data/firebase-key.json"
+    FIREBASE_DATABASE_URL: str = ""
+
 
 settings = Settings()

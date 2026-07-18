@@ -2,7 +2,6 @@ import datetime
 import hashlib
 from typing import Any, Dict, List, Optional
 import discord
-import aiosqlite
 from app.core.config import settings
 from app.core.logger import get_logger
 from app.services.database import DatabaseService
@@ -13,7 +12,7 @@ logger = get_logger(__name__)
 class AttendanceService:
     """
     Service to track user presence in voice channels, reward attendance coins,
-    and update the server leaderboard channel.
+    and update the server leaderboard channel using Firebase Realtime Database.
     """
 
     def __init__(self, db_service: DatabaseService):
@@ -21,74 +20,52 @@ class AttendanceService:
         self._last_leaderboard_hash: Optional[str] = None
         self._leaderboard_msg_id: Optional[int] = None
 
-    async def get_user_coins(self, discord_id: str, db: Optional[aiosqlite.Connection] = None) -> Dict[str, Any]:
+    async def get_user_coins(self, discord_id: str, db: Optional[Any] = None) -> Dict[str, Any]:
         """
         Get the user's current attendance coins and accumulated minutes.
-        Creates the user entry with default values if they do not exist.
+        Creates the user entry with default values if they do not exist in Firebase.
         """
-        if db is None:
-            local_db = await self.db_service.get_db()
-            try:
-                return await self._get_user_coins_internal(local_db, discord_id)
-            finally:
-                await local_db.close()
-        return await self._get_user_coins_internal(db, discord_id)
-
-    async def _get_user_coins_internal(self, db: aiosqlite.Connection, discord_id: str) -> Dict[str, Any]:
-        async with db.execute(
-            "SELECT attendance_coins, voice_accumulated_minutes FROM users WHERE discord_id = ?",
-            (discord_id,),
-        ) as cursor:
-            row = await cursor.fetchone()
-
-        if not row:
-            # Insert new user with default focus values and 100 attendance values
-            await db.execute(
-                "INSERT INTO users (discord_id, focus_points, focus_fruits, attendance_coins, voice_accumulated_minutes) VALUES (?, ?, ?, ?, ?)",
-                (discord_id, 200, 2, 100, 0),
-            )
-            await db.commit()
+        path = f"users/{discord_id}"
+        user = await self.db_service.get_data(path)
+        if not user:
+            user = {
+                "discord_id": discord_id,
+                "focus_points": 200,
+                "focus_fruits": 2,
+                "active_pet_id": None,
+                "attendance_coins": 100,
+                "voice_accumulated_minutes": 0,
+                "next_pet_id": 1,
+            }
+            await self.db_service.set_data(path, user)
+            logger.info(f"Created user {discord_id} with default profile in Firebase.")
             return {"attendance_coins": 100, "voice_accumulated_minutes": 0}
 
         return {
-            "attendance_coins": row[0] if row[0] is not None else 100,
-            "voice_accumulated_minutes": row[1] or 0,
+            "attendance_coins": user.get("attendance_coins", 100),
+            "voice_accumulated_minutes": user.get("voice_accumulated_minutes", 0),
         }
 
-    async def get_leaderboard_data(self, limit: int = 10, db: Optional[aiosqlite.Connection] = None) -> List[Dict[str, Any]]:
+    async def get_leaderboard_data(self, limit: int = 10, db: Optional[Any] = None) -> List[Dict[str, Any]]:
         """
-        Fetch top users ordered by coins, then by accumulated minutes.
+        Fetch top users ordered by coins, then by accumulated minutes from Firebase.
         Only displays users with > 0 coins or minutes.
         """
-        if db is None:
-            local_db = await self.db_service.get_db()
-            try:
-                return await self._get_leaderboard_data_internal(local_db, limit)
-            finally:
-                await local_db.close()
-        return await self._get_leaderboard_data_internal(db, limit)
-
-    async def _get_leaderboard_data_internal(self, db: aiosqlite.Connection, limit: int) -> List[Dict[str, Any]]:
-        async with db.execute(
-            """
-            SELECT discord_id, attendance_coins, voice_accumulated_minutes 
-            FROM users 
-            WHERE attendance_coins > 0 OR voice_accumulated_minutes > 0
-            ORDER BY attendance_coins DESC, voice_accumulated_minutes DESC 
-            LIMIT ?
-            """,
-            (limit,),
-        ) as cursor:
-            rows = await cursor.fetchall()
-
-        return [
-            {
-                "discord_id": row[0],
-                "attendance_coins": row[1] or 0,
-                "voice_accumulated_minutes": row[2] or 0,
-            }
-            for row in rows
-        ]
+        users = await self.db_service.get_data("users") or {}
+        leaderboard = []
+        for uid, udata in users.items():
+            coins = udata.get("attendance_coins", 0)
+            minutes = udata.get("voice_accumulated_minutes", 0)
+            if coins > 0 or minutes > 0:
+                leaderboard.append({
+                    "discord_id": uid,
+                    "attendance_coins": coins,
+                    "voice_accumulated_minutes": minutes
+                })
+        
+        # Sort descending by coins, then by accumulated minutes
+        leaderboard.sort(key=lambda x: (x["attendance_coins"], x["voice_accumulated_minutes"]), reverse=True)
+        return leaderboard[:limit]
 
     async def track_voice_presence(self, bot: discord.Client) -> None:
         """
@@ -98,56 +75,48 @@ class AttendanceService:
         - Must not be self-muted/deafened or server-muted/deafened.
         Increments active members' voice presence by 1 minute.
         """
-        db = await self.db_service.get_db()
-        try:
-            users_updated = False
+        users_updated = False
 
-            for guild in bot.guilds:
-                for voice_channel in guild.voice_channels:
-                    # Find non-bot members
-                    members = [m for m in voice_channel.members if not m.bot]
-                    if len(members) < 1:
+        for guild in bot.guilds:
+            for voice_channel in guild.voice_channels:
+                # Find non-bot members
+                members = [m for m in voice_channel.members if not m.bot]
+                if len(members) < 1:
+                    continue
+
+                for member in members:
+                    v_state = member.voice
+                    if not v_state:
                         continue
 
-                    for member in members:
-                        v_state = member.voice
-                        if not v_state:
-                            continue
+                    # Rule check: ignore muted or deafened users
+                    is_muted = v_state.self_mute or v_state.mute
+                    is_deafened = v_state.self_deaf or v_state.deaf
+                    if is_muted or is_deafened:
+                        continue
 
-                        # Rule check: ignore muted or deafened users
-                        is_muted = v_state.self_mute or v_state.mute
-                        is_deafened = v_state.self_deaf or v_state.deaf
-                        if is_muted or is_deafened:
-                            continue
+                    discord_id = str(member.id)
+                    user_data = await self.get_user_coins(discord_id)
 
-                        discord_id = str(member.id)
-                        user_data = await self.get_user_coins(discord_id, db=db)
+                    current_coins = user_data["attendance_coins"]
+                    new_coins = current_coins + 1
 
-                        current_coins = user_data["attendance_coins"]
-                        new_coins = current_coins + 1
+                    # Update attendance_coins and reset voice_accumulated_minutes to 0
+                    await self.db_service.update_data(f"users/{discord_id}", {
+                        "attendance_coins": new_coins,
+                        "voice_accumulated_minutes": 0
+                    })
+                    users_updated = True
 
-                        await db.execute(
-                            """
-                            UPDATE users 
-                            SET attendance_coins = ?, voice_accumulated_minutes = 0 
-                            WHERE discord_id = ?
-                            """,
-                            (new_coins, discord_id),
-                        )
-                        users_updated = True
+                    logger.info(
+                        f"User {member.display_name} ({discord_id}) earned 1 coin from voice presence!"
+                    )
 
-                        logger.info(
-                            f"User {member.display_name} ({discord_id}) earned 1 coin from voice presence!"
-                        )
+        if users_updated:
+            # Update the persistent leaderboard
+            await self.update_leaderboard_channel(bot)
 
-            if users_updated:
-                await db.commit()
-                # Update the persistent leaderboard
-                await self.update_leaderboard_channel(bot, db=db)
-        finally:
-            await db.close()
-
-    async def update_leaderboard_channel(self, bot: discord.Client, db: Optional[aiosqlite.Connection] = None) -> None:
+    async def update_leaderboard_channel(self, bot: discord.Client, db: Optional[Any] = None) -> None:
         """
         Builds the current top leaderboard Embed and edits/creates the message in the leaderboard channel.
         Uses auto-discovery to reuse the existing leaderboard message.
@@ -161,7 +130,6 @@ class AttendanceService:
 
         channel = bot.get_channel(channel_id)
         if not channel:
-            # Fetch channel asynchronously if it wasn't in cache
             try:
                 channel = await bot.fetch_channel(channel_id)
             except Exception as e:
@@ -173,7 +141,7 @@ class AttendanceService:
             return
 
         # Fetch top users
-        top_users = await self.get_leaderboard_data(limit=10, db=db)
+        top_users = await self.get_leaderboard_data(limit=10)
 
         # Build a hash to see if data has changed
         data_signature = "|".join(

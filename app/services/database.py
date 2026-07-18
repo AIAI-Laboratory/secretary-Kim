@@ -1,5 +1,9 @@
-import os
-import aiosqlite
+import asyncio
+import json
+import firebase_admin
+from firebase_admin import credentials
+from firebase_admin import db as firebase_db
+from typing import Any, Optional, Dict
 from app.core.config import settings
 from app.core.logger import get_logger
 
@@ -7,89 +11,78 @@ logger = get_logger(__name__)
 
 
 class DatabaseService:
-    def __init__(self, db_path: str = None):
-        self.db_path = db_path or settings.DATABASE_PATH
+    def __init__(self):
+        self._initialized = False
 
-    async def init_db(self):
-        """Initialize the database tables if they do not exist."""
-        # Ensure target directory exists
-        db_dir = os.path.dirname(self.db_path)
-        if db_dir and not os.path.exists(db_dir):
-            os.makedirs(db_dir, exist_ok=True)
-            logger.info(f"Created database directory: {db_dir}")
+    async def init_db(self) -> None:
+        """Initialize the Firebase App and connect to the Realtime Database."""
+        if self._initialized:
+            return
 
-        async with aiosqlite.connect(self.db_path) as db:
-            await db.execute("PRAGMA journal_mode=WAL;")
-            # Create users table
-            await db.execute("""
-                CREATE TABLE IF NOT EXISTS users (
-                    discord_id TEXT PRIMARY KEY,
-                    focus_points INTEGER DEFAULT 0,
-                    focus_fruits INTEGER DEFAULT 0,
-                    active_pet_id INTEGER DEFAULT NULL,
-                    pomodoro_start_time TEXT DEFAULT NULL,
-                    pomodoro_channel_id TEXT DEFAULT NULL,
-                    pomodoro_text_channel_id TEXT DEFAULT NULL,
-                    pomodoro_duration_mins INTEGER DEFAULT 25
-                )
-            """)
-
-            # Upgrade schema for attendance tracking
-            for col, col_def in [
-                ("attendance_coins", "INTEGER DEFAULT 100"),
-                ("voice_accumulated_minutes", "INTEGER DEFAULT 0"),
-            ]:
-                try:
-                    await db.execute(f"ALTER TABLE users ADD COLUMN {col} {col_def}")
-                    logger.info(
-                        f"Database migration: Added column '{col}' to 'users' table."
-                    )
-                except Exception as e:
-                    # Column already exists
-                    logger.debug(f"Column '{col}' already exists in 'users' table: {e}")
-
-            # Initialize existing users with 100 coins if they have 0 or NULL
-            await db.execute(
-                "UPDATE users SET attendance_coins = 100 WHERE attendance_coins IS NULL OR attendance_coins = 0"
+        # Ensure credentials are provided
+        if not settings.FIREBASE_CREDENTIALS_JSON and not settings.FIREBASE_CREDENTIALS_PATH:
+            raise ValueError(
+                "Neither FIREBASE_CREDENTIALS_JSON nor FIREBASE_CREDENTIALS_PATH is set in environment settings."
             )
 
-            # Create pets table
-            await db.execute("""
-                CREATE TABLE IF NOT EXISTS pets (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    user_id TEXT NOT NULL,
-                    name TEXT NOT NULL,
-                    rarity TEXT NOT NULL,
-                    type1 TEXT NOT NULL,
-                    type2 TEXT,
-                    level INTEGER DEFAULT 1,
-                    exp INTEGER DEFAULT 0,
-                    hp INTEGER DEFAULT 100,
-                    stage INTEGER DEFAULT 1,
-                    concept TEXT NOT NULL,
-                    mega_capable INTEGER DEFAULT 0,
-                    stage1_name TEXT NOT NULL,
-                    stage1_desc TEXT NOT NULL,
-                    stage1_prompt TEXT NOT NULL,
-                    stage1_img TEXT,
-                    stage2_name TEXT NOT NULL,
-                    stage2_desc TEXT NOT NULL,
-                    stage2_prompt TEXT NOT NULL,
-                    stage2_img TEXT,
-                    stage3_name TEXT NOT NULL,
-                    stage3_desc TEXT NOT NULL,
-                    stage3_prompt TEXT NOT NULL,
-                    stage3_img TEXT,
-                    mega_name TEXT,
-                    mega_desc TEXT,
-                    mega_prompt TEXT,
-                    mega_img TEXT,
-                    FOREIGN KEY(user_id) REFERENCES users(discord_id)
-                )
-            """)
-            await db.commit()
-            logger.info(f"SQLite database initialized at: {self.db_path}")
+        if not settings.FIREBASE_DATABASE_URL:
+            raise ValueError("FIREBASE_DATABASE_URL is not set in environment settings.")
 
-    async def get_db(self) -> aiosqlite.Connection:
-        """Get an active aiosqlite connection."""
-        return await aiosqlite.connect(self.db_path, timeout=30.0)
+        def _init():
+            if not firebase_admin._apps:
+                if settings.FIREBASE_CREDENTIALS_JSON:
+                    try:
+                        cred_dict = json.loads(settings.FIREBASE_CREDENTIALS_JSON)
+                        cred = credentials.Certificate(cred_dict)
+                        logger.info("Initializing Firebase using FIREBASE_CREDENTIALS_JSON.")
+                    except Exception as e:
+                        logger.error(f"Failed to parse FIREBASE_CREDENTIALS_JSON: {e}")
+                        raise e
+                else:
+                    logger.info(f"Initializing Firebase using key path: {settings.FIREBASE_CREDENTIALS_PATH}")
+                    cred = credentials.Certificate(settings.FIREBASE_CREDENTIALS_PATH)
+                
+                firebase_admin.initialize_app(cred, {
+                    'databaseURL': settings.FIREBASE_DATABASE_URL
+                })
+                logger.info(f"Firebase initialized successfully with DB URL: {settings.FIREBASE_DATABASE_URL}")
+
+        await asyncio.to_thread(_init)
+        self._initialized = True
+
+    async def get_ref(self, path: str = "/") -> firebase_db.Reference:
+        """Get a reference to a path in the database. Thread-safe."""
+        if not self._initialized:
+            await self.init_db()
+        return firebase_db.reference(path)
+
+    async def get_data(self, path: str) -> Any:
+        """Read data from a path asynchronously."""
+        ref = await self.get_ref(path)
+        return await asyncio.to_thread(ref.get)
+
+    async def set_data(self, path: str, data: Any) -> None:
+        """Write/overwrite data to a path asynchronously."""
+        ref = await self.get_ref(path)
+        await asyncio.to_thread(ref.set, data)
+
+    async def update_data(self, path: str, data: Dict[str, Any]) -> None:
+        """Update fields at a path asynchronously."""
+        ref = await self.get_ref(path)
+        await asyncio.to_thread(ref.update, data)
+
+    async def push_data(self, path: str, data: Any) -> str:
+        """Push (append) data to a list and return the new child's key/ID."""
+        ref = await self.get_ref(path)
+        new_ref = await asyncio.to_thread(ref.push, data)
+        return new_ref.key
+
+    async def delete_data(self, path: str) -> None:
+        """Delete data at a path asynchronously."""
+        ref = await self.get_ref(path)
+        await asyncio.to_thread(ref.delete)
+
+    async def run_transaction(self, path: str, transaction_fn) -> Any:
+        """Run a transaction at the given path asynchronously."""
+        ref = await self.get_ref(path)
+        return await asyncio.to_thread(ref.transaction, transaction_fn)
