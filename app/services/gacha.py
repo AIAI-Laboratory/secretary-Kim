@@ -1,6 +1,5 @@
 import json
 import random
-import io
 import httpx
 from typing import Dict, Any, Tuple, Optional
 from google import genai

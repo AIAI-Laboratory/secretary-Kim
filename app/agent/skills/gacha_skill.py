@@ -145,7 +145,7 @@ class GachaSkill(BaseSkill):
             )
 
         elif function_name == "roll_gacha":
-            user_profile = await self.gacha_service.check_or_create_user(None, context.user_id)
+            await self.gacha_service.check_or_create_user(None, context.user_id)
             coins_data = await client.attendance_service.get_user_coins(context.user_id)
             coins = coins_data["attendance_coins"]
 
@@ -296,7 +296,6 @@ class GachaSkill(BaseSkill):
                     pixel_bytes = await self.gacha_service.generate_evolution_image(
                         prompt, prev_img_url
                     )
-                    hd_bytes = pixel_bytes
 
                     image_channel = client.get_channel(settings.GACHA_IMAGE_CHANNEL_ID)
                     if not image_channel:

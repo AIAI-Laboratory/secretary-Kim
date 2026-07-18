@@ -18,6 +18,7 @@ dependencies = [
     "aiosqlite>=0.22.1",
     "firebase-admin>=6.5.0",
     "pyxelate",
+    "ruff>=0.15.22",
 ]
 
 [tool.uv.sources]

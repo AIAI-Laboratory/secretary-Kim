@@ -1,7 +1,6 @@
 import io
 import asyncio
-import datetime
-from typing import Dict, Any, Optional
+from typing import Optional
 import discord
 from discord.ext import commands
 from discord import app_commands
@@ -500,7 +499,6 @@ class GachaCog(commands.Cog):
                 pixel_bytes = await self.gacha_service.generate_evolution_image(
                     prompt, prev_img_url
                 )
-                hd_bytes = pixel_bytes
 
                 # Upload to Discord Image channel
                 image_channel = self.bot.get_channel(settings.GACHA_IMAGE_CHANNEL_ID)
@@ -541,7 +539,7 @@ class GachaCog(commands.Cog):
                 msg += f"\n⚠️ Image generation failed for this evolution stage: {e}"
 
         # Display final response
-        type_str = format_types(updated_pet["type1"], updated_pet["type2"])
+        format_types(updated_pet["type1"], updated_pet["type2"])
         stage_name = (
             updated_pet[f"stage{updated_pet['stage']}_name"]
             if updated_pet["stage"] <= 3
