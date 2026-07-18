@@ -488,7 +488,8 @@ requires-dist = [
     { name = "pynacl", specifier = ">=1.6.2" },
     { name = "python-dotenv", specifier = ">=1.2.2" },
     { name = "pyxelate", git = "https://github.com/sedthh/pyxelate.git" },
-    { name = "yt-dlp", specifier = ">=2026.6.9" },
+    { name = "ruff", specifier = ">=0.15.22" },
+    { name = "yt-dlp", specifier = ">=2026.7.4" },
 ]
 
 [[package]]
