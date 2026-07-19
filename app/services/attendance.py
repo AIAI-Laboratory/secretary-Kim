@@ -132,10 +132,10 @@ class AttendanceService:
         Builds the current top leaderboard Embed and edits/creates the message in the leaderboard channel.
         Uses auto-discovery to reuse the existing leaderboard message.
         """
-        channel_id = settings.LB_CHANNEL_ID or settings.LEADERBOARD_CHANNEL_ID
+        channel_id = settings.LEADERBOARD_CHANNEL_ID
         if not channel_id:
             logger.warning(
-                "Neither LB_CHANNEL_ID nor LEADERBOARD_CHANNEL_ID is configured in settings. Skipping leaderboard update."
+                "LEADERBOARD_CHANNEL_ID is not configured in settings. Skipping leaderboard update."
             )
             return
 
