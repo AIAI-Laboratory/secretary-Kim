@@ -30,3 +30,13 @@ class GachaPetDesign(BaseModel):
         None,
         description="Mega form design details (None/null if not capable or if Legendary/God)",
     )
+
+
+class AlignedPrompts(BaseModel):
+    stage2: Optional[EvolutionStage] = Field(
+        None, description="Stage 2 aligned prompts"
+    )
+    stage3: Optional[EvolutionStage] = Field(
+        None, description="Stage 3 aligned prompts"
+    )
+    mega: Optional[EvolutionStage] = Field(None, description="Mega aligned prompts")

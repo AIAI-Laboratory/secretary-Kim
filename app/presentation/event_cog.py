@@ -337,6 +337,193 @@ class ProposedActionView(discord.ui.View):
         await interaction.response.send_modal(modal)
 
 
+class HelpView(discord.ui.View):
+    """View containing interactive pagination buttons for the help menu."""
+
+    def __init__(self, user_id: str):
+        super().__init__(timeout=180)
+        self.user_id = user_id
+        self.current_page = 0
+
+        # Pre-create all embeds
+        self.pages = [
+            self.create_page1_embed(),
+            self.create_page2_embed(),
+            self.create_page3_embed(),
+        ]
+        self._update_button_states()
+
+    async def interaction_check(self, interaction: discord.Interaction) -> bool:
+        if str(interaction.user.id) != self.user_id:
+            await interaction.response.send_message(
+                "❌ This help menu is only for the user who requested it.",
+                ephemeral=True,
+            )
+            return False
+        return True
+
+    def create_page1_embed(self) -> discord.Embed:
+        embed = discord.Embed(
+            title="👾 Pokémon Gacha & Pomodoro Focus",
+            description="Level up productivity, earn coins, and raise unique procedural companions!",
+            color=0x5865F2,
+        )
+        embed.add_field(
+            name="`/gacha`",
+            value=(
+                "• **Prerequisites**: Costs **100 Coins**.\n"
+                "• **How it works**: Rolls procedural types, rarities, and concept themes. Uses Gemini AI to design the companion and PixelLab to render a custom transparent pixel-art image."
+            ),
+            inline=False,
+        )
+        embed.add_field(
+            name="`/feed [amount=1]`",
+            value=(
+                "• **Prerequisites**: Must have an active companion and sufficient coins. **20 Coins per Fruit** (cost: `20 * amount`). `amount` must be a positive integer.\n"
+                "• **How it works**: Restores **20 HP per fruit** (up to 100 max) and adds random XP (sum of `amount` rolls of **15-30 XP**). Triggers level-ups at 100 XP.\n"
+                "• **Evolution Checkpoints**: Common & Epic rarity pets evolve at **Level 5** (Stage 2), **Level 15** (Stage 3), and **Level 30** (Stage 4 Mega - requires Mega-Capable roll). Only 1 stage can evolve per feed."
+            ),
+            inline=False,
+        )
+        embed.add_field(
+            name="`/pet-active`",
+            value="• **How it works**: Displays the statistics (Level, HP, XP, types, evolution details, description, and pixel art) of your currently active companion.",
+            inline=False,
+        )
+        embed.add_field(
+            name="`/pet-list`",
+            value="• **How it works**: Lists all Pokémon companions in your collection and displays an interactive dropdown to switch your active companion.",
+            inline=False,
+        )
+        embed.add_field(
+            name="`/pomodoro-start [duration=25]`",
+            value=(
+                "• **Prerequisites**: Must join a voice channel.\n"
+                "• **How it works**: Starts a focus timer. Earn **1 Coin per minute** of voice presence.\n"
+                "• **Caution**: Leaving voice channel early cancels the session and inflicts health damage on your active companion."
+            ),
+            inline=False,
+        )
+        embed.add_field(
+            name="`/pomodoro-cancel`",
+            value="• **How it works**: Terminates active focus timer. Progress is lost, no coins awarded, and active companion takes health damage.",
+            inline=False,
+        )
+        embed.set_footer(text="Page 1/3 | Secretary Kim Assistant")
+        return embed
+
+    def create_page2_embed(self) -> discord.Embed:
+        embed = discord.Embed(
+            title="🎵 Music Player",
+            description="Play high-quality audio in your voice channel.",
+            color=0x57F287,
+        )
+        embed.add_field(
+            name="`/play <query>`",
+            value=(
+                "• **Prerequisites**: Must join a voice channel.\n"
+                "• **How it works**: Connects bot to your voice channel (or moves it if idle), resolves YouTube URLs/search keywords via `yt-dlp`, prepares direct stream links, and appends them to the queue. Automatically starts playing if queue was empty."
+            ),
+            inline=False,
+        )
+        embed.add_field(
+            name="`/pause`",
+            value="• **Prerequisites**: Audio must be currently playing.\n"
+            "• **How it works**: Pauses the active audio playback stream.",
+            inline=False,
+        )
+        embed.add_field(
+            name="`/resume`",
+            value="• **Prerequisites**: Audio must be currently paused.\n"
+            "• **How it works**: Resumes the paused audio playback stream.",
+            inline=False,
+        )
+        embed.add_field(
+            name="`/skip`",
+            value="• **Prerequisites**: Audio must be currently playing.\n"
+            "• **How it works**: Skips the current track and automatically starts playing the next track in the queue.",
+            inline=False,
+        )
+        embed.add_field(
+            name="`/stop`",
+            value="• **How it works**: Stops playback, clears all tracks in the queue, and resets music state.",
+            inline=False,
+        )
+        embed.add_field(
+            name="`/leave`",
+            value="• **Prerequisites**: Bot must be in a voice channel.\n"
+            "• **How it works**: Disconnects the bot from the voice channel and clears the music queue.",
+            inline=False,
+        )
+        embed.add_field(
+            name="`/loop`",
+            value="• **Prerequisites**: Audio must be playing.\n"
+            "• **How it works**: Toggles repeat mode. If enabled, repeats the current track infinitely.",
+            inline=False,
+        )
+        embed.add_field(
+            name="`/queue`",
+            value="• **How it works**: Displays details of the currently playing track and lists the next 10 queued tracks.",
+            inline=False,
+        )
+        embed.set_footer(text="Page 2/3 | Secretary Kim Assistant")
+        return embed
+
+    def create_page3_embed(self) -> discord.Embed:
+        embed = discord.Embed(
+            title="🤖 Assistant / AI Chat",
+            description="Talk to Secretary Kim in natural language to perform complex scheduling and automation.",
+            color=0xFEE75C,
+        )
+        embed.add_field(
+            name="`/kim <request>`",
+            value=(
+                "• **How it works**: Routes natural language requests through Google Gemini Pro. The agent maps inputs against server members/voice channels and triggers actions (e.g. playing music, starting Pomodoros, scheduling meetings).\n"
+                "• **HITL (Human-in-the-Loop) Workflow**: For server events and task creations, the bot displays a draft card containing action buttons:\n"
+                "  - `✅ Approve`: Confirms and creates the scheduled Discord event, pinging `@everyone`.\n"
+                "  - `✖️ Reject`: Deletes the draft event.\n"
+                "  - `✏️ Edit`: Opens a form modal to manually override details (Title, Description, Assignee, Start Time, Location).\n\n"
+                "**Usage Examples:**\n"
+                "• `/kim play some lo-fi tracks`\n"
+                "• `/kim check the current queue`\n"
+                "• `/kim start a pomodoro focus session for 30 minutes`\n"
+                "• `/kim schedule a meeting tomorrow at 3 PM called 'Project Sync' in Meeting Room`"
+            ),
+            inline=False,
+        )
+        embed.set_footer(text="Page 3/3 | Secretary Kim Assistant")
+        return embed
+
+    def _update_button_states(self):
+        for idx, child in enumerate(self.children):
+            if isinstance(child, discord.ui.Button):
+                child.disabled = idx == self.current_page
+
+    @discord.ui.button(label="👾 Gacha & Pomodoro", style=discord.ButtonStyle.primary)
+    async def button_gacha(
+        self, interaction: discord.Interaction, button: discord.ui.Button
+    ):
+        self.current_page = 0
+        self._update_button_states()
+        await interaction.response.edit_message(embed=self.pages[0], view=self)
+
+    @discord.ui.button(label="🎵 Music Player", style=discord.ButtonStyle.success)
+    async def button_music(
+        self, interaction: discord.Interaction, button: discord.ui.Button
+    ):
+        self.current_page = 1
+        self._update_button_states()
+        await interaction.response.edit_message(embed=self.pages[1], view=self)
+
+    @discord.ui.button(label="🤖 AI Assistant", style=discord.ButtonStyle.secondary)
+    async def button_ai(
+        self, interaction: discord.Interaction, button: discord.ui.Button
+    ):
+        self.current_page = 2
+        self._update_button_states()
+        await interaction.response.edit_message(embed=self.pages[2], view=self)
+
+
 class EventCog(commands.Cog):
     """Cog to handle routing natural language requests through the central AI Agent."""
 
@@ -353,6 +540,24 @@ class EventCog(commands.Cog):
     async def kim(self, interaction: discord.Interaction, request: str):
         # Prevent Discord timeout after 3 seconds
         await interaction.response.defer()
+
+        # Intercept help-like queries for direct response without Gemini API call latency
+        clean_req = request.strip().strip("?").lower()
+        if clean_req in [
+            "help",
+            "help me",
+            "/help",
+            "trợ giúp",
+            "cứu",
+            "hướng dẫn",
+            "show help",
+            "show me help",
+            "commands",
+            "list commands",
+        ]:
+            view = HelpView(str(interaction.user.id))
+            await interaction.followup.send(embed=view.pages[0], view=view)
+            return
 
         # Pack request into AgentRequest to send to core
         request_obj = AgentRequest(
@@ -379,7 +584,9 @@ class EventCog(commands.Cog):
             if response.view:
                 send_args["view"] = response.view
 
-            await interaction.followup.send(**send_args)
+            if send_args:
+                await interaction.followup.send(**send_args)
+
         except Exception as e:
             logger.error(
                 f"System error when processing /kim command: {e}", exc_info=True
@@ -388,3 +595,11 @@ class EventCog(commands.Cog):
                 "❌ The system encountered an error while processing the request. Please try again later.",
                 ephemeral=True,
             )
+
+    @app_commands.command(
+        name="help",
+        description="Show all available slash commands of Secretary Kim with interactive pagination",
+    )
+    async def help(self, interaction: discord.Interaction):
+        view = HelpView(str(interaction.user.id))
+        await interaction.response.send_message(embed=view.pages[0], view=view)
