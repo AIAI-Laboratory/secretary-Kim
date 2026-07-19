@@ -7,7 +7,15 @@ from app.core.config import settings
 from app.core.logger import get_logger
 from app.services.database import DatabaseService
 from app.services.pixellab import PixelLabService
-from .constants import TYPES, TYPE_EMOJIS, CONCEPTS, SYSTEM_PROMPT_TEMPLATE
+from .constants import TYPES, TYPE_EMOJIS, CONCEPTS
+from .prompts import (
+    SYSTEM_PROMPT_TEMPLATE,
+    SINGLE_STAGE_EVOLUTION_RULES_TEMPLATE,
+    SINGLE_STAGE_LENGTH_RULE,
+    MULTI_STAGE_EVOLUTION_RULES,
+    MULTI_STAGE_LENGTH_RULE,
+    ALIGN_PROMPTS_SYSTEM_PROMPT,
+)
 
 logger = get_logger(__name__)
 
@@ -111,18 +119,13 @@ class GachaService:
         is_single_stage = attrs["rarity"] in ["Legendary", "God"]
 
         if is_single_stage:
-            evolution_rules = f"• Since this is a {attrs['rarity']} creature, it does NOT evolve. It only has one single stage. Therefore, you MUST set stage2, stage3, and mega to null / None. Do NOT fill in stage2, stage3, or mega."
-            length_rule = (
-                "5-6 detailed, complex, epic sentences describing a legendary/god form."
+            evolution_rules = SINGLE_STAGE_EVOLUTION_RULES_TEMPLATE.format(
+                rarity=attrs["rarity"]
             )
+            length_rule = SINGLE_STAGE_LENGTH_RULE
         else:
-            evolution_rules = (
-                "• For Common and Epic creatures, you must design all 3 stages. Evolution stages must feel like a coherent progression.\n"
-                "• CRITICAL: You MUST maintain strict design, color, and visual consistency across all stages (stage1, stage2, stage3, mega).\n"
-                "• All stages MUST share the exact same core color palette, base materials, body textures, style, and facial/species characteristics.\n"
-                "• Evolution must represent growth, aging, and power enhancement (e.g. growing larger, getting thicker armor plates, developing horns/wings, more intense elemental effects, transitioning from cute to fierce), NOT transforming into a completely different species or changing colors completely."
-            )
-            length_rule = "3–5 detailed sentences."
+            evolution_rules = MULTI_STAGE_EVOLUTION_RULES
+            length_rule = MULTI_STAGE_LENGTH_RULE
 
         system_prompt = SYSTEM_PROMPT_TEMPLATE.format(
             evolution_rules=evolution_rules, length_rule=length_rule
@@ -553,20 +556,7 @@ class GachaService:
         if pet_data.get("rarity") in ["Legendary", "God"]:
             return pet_data
 
-        system_prompt = (
-            "You are a world-class pocket monster designer. "
-            "Your task is to fix mismatched evolution prompts. We have a pocket monster whose Stage 1 "
-            "has a specific visual design, color palette, and material composition. "
-            "However, its evolved stages (Stage 2, Stage 3, and/or Mega) are currently described with completely different "
-            "colors, materials, or species attributes, which makes them feel like a different evolutionary line.\n\n"
-            "## Rules:\n"
-            "1. You MUST align the names, descriptions, and visual prompts of Stage 2, Stage 3, and Mega with Stage 1.\n"
-            "2. Keep the exact same core color palette, base materials, body textures, style, and facial characteristics of Stage 1.\n"
-            "3. Make sure the visual prompt describes a larger, older, and more powerful progression of the Stage 1 creature "
-            "(e.g., growing larger, getting thicker armor plates of the same material/color, developing horns/wings, more intense elemental effects, transitioning from cute to fierce), "
-            "not transforming into a completely different species or changing colors.\n"
-            "4. Only describe the creature itself in visual_prompt. Do not include any background or environment."
-        )
+        system_prompt = ALIGN_PROMPTS_SYSTEM_PROMPT
 
         user_input = {
             "name": pet_data.get("name"),
@@ -668,3 +658,13 @@ class GachaService:
 
         current_png_bytes = await download_image_bytes(current_img_url)
         return generate_complete_evolution_gif(current_png_bytes, new_png_bytes, pet_id)
+
+    async def rollback_pet_stage(
+        self, user_id: str, pet_id: int, prev_stage: int
+    ) -> None:
+        """Rollback the pet's stage in the database if image generation fails."""
+        pet_path = f"users/{user_id}/pets/{pet_id}"
+        await self.db_service.update_data(pet_path, {"stage": prev_stage})
+        logger.info(
+            f"Rolled back pet {pet_id} of user {user_id} to stage {prev_stage}."
+        )

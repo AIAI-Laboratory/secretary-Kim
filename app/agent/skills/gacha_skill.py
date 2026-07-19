@@ -475,10 +475,25 @@ class GachaSkill(BaseSkill):
                         err_msg = (
                             f"\n⚠️ Image generation failed for this evolution stage: {e}"
                         )
+
+                        # Rollback pet stage in DB so the user can attempt evolution again later
+                        try:
+                            await self.gacha_service.rollback_pet_stage(
+                                context.user_id, updated_pet["id"], pet_before["stage"]
+                            )
+                        except Exception as re:
+                            logger.error(
+                                f"Failed to rollback pet stage in skill: {re}",
+                                exc_info=True,
+                            )
+
                         if evolution_msg_obj:
                             embed_err = discord.Embed(
                                 title="❌ Evolution Interrupted",
-                                description=f"{msg}\n\nFailed to finalize evolution graphic: {e}",
+                                description=(
+                                    f"{msg}\n\nFailed to finalize evolution graphic: {e}\n\n"
+                                    f"*Note: Your pet's level and XP have been saved, but the evolution was rolled back so you can try again later.*"
+                                ),
                                 color=0xED4245,
                             )
                             await evolution_msg_obj.edit(
