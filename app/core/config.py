@@ -1,3 +1,4 @@
+from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -13,11 +14,8 @@ class Settings(BaseSettings):
     GEMINI_FALLBACK_MODEL: str = "gemini-3.5-flash"
     TEMP_DIR: str = "temp"
 
-    CLOUDFLARE_API_TOKEN: str = ""
-    CLOUDFLARE_ACCOUNT_ID: str = ""
     GACHA_IMAGE_CHANNEL_ID: int = 0
     LEADERBOARD_CHANNEL_ID: int = 0
-    LB_CHANNEL_ID: int = 0
     # Image generation model selection:
     CLOUDFLARE_IMAGE_MODEL: str = "google/imagen-4"
     DATABASE_PATH: str = "data/database.db"
@@ -26,6 +24,17 @@ class Settings(BaseSettings):
     FIREBASE_CREDENTIALS_JSON: str = ""
     FIREBASE_CREDENTIALS_PATH: str = "data/firebase-key.json"
     FIREBASE_DATABASE_URL: str = ""
+
+    @field_validator(
+        "GACHA_IMAGE_CHANNEL_ID",
+        "LEADERBOARD_CHANNEL_ID",
+        mode="before",
+    )
+    @classmethod
+    def empty_str_to_zero(cls, v):
+        if v == "":
+            return 0
+        return v
 
 
 settings = Settings()

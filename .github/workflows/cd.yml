@@ -24,7 +24,6 @@ jobs:
             FIREBASE_DATABASE_URL,
             GACHA_IMAGE_CHANNEL_ID,
             LEADERBOARD_CHANNEL_ID,
-            LB_CHANNEL_ID,
             GEMINI_PRIMARY_MODEL,
             GEMINI_FALLBACK_MODEL,
             CLOUDFLARE_IMAGE_MODEL,
@@ -52,7 +51,6 @@ jobs:
               -e FIREBASE_DATABASE_URL \
               -e GACHA_IMAGE_CHANNEL_ID \
               -e LEADERBOARD_CHANNEL_ID \
-              -e LB_CHANNEL_ID \
               -e GEMINI_PRIMARY_MODEL="${GEMINI_PRIMARY_MODEL:-gemini-3.1-flash-lite}" \
               -e GEMINI_FALLBACK_MODEL="${GEMINI_FALLBACK_MODEL:-gemini-3.5-flash}" \
               -e CLOUDFLARE_IMAGE_MODEL="${CLOUDFLARE_IMAGE_MODEL:-google/imagen-4}" \
@@ -70,7 +68,6 @@ jobs:
           FIREBASE_DATABASE_URL: ${{ vars.FIREBASE_DATABASE_URL }}
           GACHA_IMAGE_CHANNEL_ID: ${{ vars.GACHA_IMAGE_CHANNEL_ID }}
           LEADERBOARD_CHANNEL_ID: ${{ vars.LEADERBOARD_CHANNEL_ID }}
-          LB_CHANNEL_ID: ${{ vars.LB_CHANNEL_ID }}
           GEMINI_PRIMARY_MODEL: ${{ vars.GEMINI_PRIMARY_MODEL }}
           GEMINI_FALLBACK_MODEL: ${{ vars.GEMINI_FALLBACK_MODEL }}
           CLOUDFLARE_IMAGE_MODEL: ${{ vars.CLOUDFLARE_IMAGE_MODEL }}

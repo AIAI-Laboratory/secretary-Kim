@@ -27,6 +27,19 @@ Built with modern Python development practices, Secretary Kim is structured usin
 *   **Multi-Guild Support**: Features server-isolated queues so multiple Discord servers can play different songs concurrently.
 *   **Loop Mode**: Toggle repetition for the currently playing track.
 
+### 🏆 4. Attendance Coin Earning & Leaderboard
+*   **Voice Presence Tracking**: Automatically scans voice channels every 60 seconds to reward active users.
+*   **Coin Economy**: Earn **1 Attendance Coin** for every minute active in voice channels.
+*   **Fair Play Rules**: User must be in a voice channel with at least 1 other non-bot member, and cannot be muted (self/server) or deafened (self/server).
+*   **Persistent Leaderboard**: Automatically posts and updates a pinned leaderboard in the designated channel (`LEADERBOARD_CHANNEL_ID`), displaying the top 10 users sorted by total Coins. Employs MD5 hashing of content state to only trigger edits when data changes, avoiding Discord rate limits.
+
+### 👾 5. Procedural Pokémon Gacha & Pomodoro Focus
+*   **Gemini-Designed Companions**: Roll for completely unique Pokémon companions. Uses Gemini to procedurally design the pet's name, element types (from 18 categories), lore, and visual prompts based on rarity and concepts (across 19 themes).
+*   **AI-Generated Pixel Art**: Uses Cloudflare AI (PixelLab Service) to dynamically render high-quality custom transparent pixel-art images for each pet.
+*   **Pet Feeding & XP**: Spend **20 Coins** to feed your active pet, healing **20 HP** and granting **15-30 XP**.
+*   **Multistage Evolutions**: Common and Epic rarity pets can evolve into Stage 2 (Level 15), Stage 3 (Level 36), and a 20% chance of a Stage 4 Mega Evolution (Level 50), automatically generating newly evolved pixel art. Legendary and God rarity pets do not evolve and remain in their majestic single stage.
+*   **Pomodoro Focus**: Start Pomodoro focus sessions (default 25 minutes) directly with `/pomodoro-start` or via AI commands to level up focus habits while keeping your pet active.
+
 ---
 
 ## ⚙️ How the AI Scheduling Works
@@ -103,6 +116,16 @@ The project is structured according to **Clean Architecture** guidelines to sepa
 | `/stop` | Stop playback and clear the queue | *None* |
 | `/leave` | Disconnect the bot from the voice channel and clear queue | *None* |
 
+### Gacha & Pomodoro Commands
+| Command | Description | Arguments |
+|:---|:---|:---|
+| `/gacha` | Roll a new procedural Pokemon companion. | *None* (Costs 100 Coins) |
+| `/pet-active` | View stats, HP, level, and image of your active pet companion. | *None* |
+| `/pet-list` | Display a list of all your pets with an interactive dropdown to switch active companion. | *None* |
+| `/feed` | Feed 20 Coins to your active pet to heal 20 HP, earn XP, and trigger evolutions. | *None* |
+| `/pomodoro-start` | Start a Pomodoro focus session in your current voice channel. | `duration` (Focus duration in minutes, default 25) |
+| `/pomodoro-cancel` | Cancel your active Pomodoro focus session. | *None* |
+
 ---
 
 ## 🚀 Getting Started
@@ -119,8 +142,21 @@ The project is structured according to **Clean Architecture** guidelines to sepa
     ```
 2.  Open the newly created `.env` file and populate it with your keys:
     ```env
-    DISCORD_BOT_TOKEN=your_discord_bot_token
     GEMINI_API_KEY=your_gemini_api_key
+    DISCORD_BOT_TOKEN=your_discord_bot_token
+    GACHA_IMAGE_CHANNEL_ID=your_gacha_image_channel_id
+    LEADERBOARD_CHANNEL_ID=your_leaderboard_channel_id
+    PIXELLAB_API_KEY=your_pixellab_api_key
+
+    # Optional settings with default values:
+    # GEMINI_PRIMARY_MODEL=gemini-3.1-flash-lite
+    # GEMINI_FALLBACK_MODEL=gemini-3.5-flash
+
+    # Firebase Realtime Database:
+    FIREBASE_DATABASE_URL=https://your-project-default-rtdb.asia-southeast1.firebasedatabase.app/
+    FIREBASE_CREDENTIALS_PATH=data/firebase-key.json
+    # OR configure via JSON string:
+    # FIREBASE_CREDENTIALS_JSON='{...}'
     ```
 
 #### Discord Developer Portal Setup
