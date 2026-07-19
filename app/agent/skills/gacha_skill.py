@@ -64,8 +64,16 @@ class GachaSkill(BaseSkill):
             ),
             types.FunctionDeclaration(
                 name="feed_pet",
-                description="Feed 20 Coins to the active Pokemon companion to restore HP and gain XP/levels.",
-                parameters={"type": "OBJECT", "properties": {}},
+                description="Feed a specified number of Fruits (each costing 20 Coins) to the active Pokemon companion to restore HP and gain XP/levels.",
+                parameters={
+                    "type": "OBJECT",
+                    "properties": {
+                        "amount": {
+                            "type": "INTEGER",
+                            "description": "The number of fruits to feed (must be a positive integer, defaults to 1)",
+                        }
+                    },
+                },
             ),
         ]
 
@@ -277,67 +285,263 @@ class GachaSkill(BaseSkill):
                     message="❌ You do not have an active pet. Ask me to roll gacha for you!",
                 )
 
+            amount = args.get("amount") or 1
+            if not isinstance(amount, int) or amount <= 0:
+                return SkillResult(
+                    success=False,
+                    message="❌ Feeding amount must be a positive integer!",
+                )
+
             success, msg, updated_pet = await self.gacha_service.feed_active_pet(
-                context.user_id
+                context.user_id, amount
             )
             if not success:
                 return SkillResult(success=False, message=msg)
 
             # Check evolution
             if updated_pet["stage"] > pet_before["stage"]:
-                try:
-                    new_stage = updated_pet["stage"]
-                    prompt = (
-                        updated_pet[f"stage{new_stage}_prompt"]
-                        if new_stage <= 3
-                        else updated_pet["mega_prompt"]
-                    )
+                new_stage = updated_pet["stage"]
+                stage_name = (
+                    updated_pet[f"stage{new_stage}_name"]
+                    if new_stage <= 3
+                    else updated_pet["mega_name"]
+                )
 
-                    prev_img_url = (
-                        updated_pet[f"stage{new_stage - 1}_img"]
-                        if new_stage <= 3
-                        else updated_pet["stage3_img"]
-                    )
-                    pixel_bytes = await self.gacha_service.generate_evolution_image(
-                        prompt, prev_img_url
-                    )
-
-                    image_channel = client.get_channel(settings.GACHA_IMAGE_CHANNEL_ID)
-                    if not image_channel:
-                        image_channel = await client.fetch_channel(
-                            settings.GACHA_IMAGE_CHANNEL_ID
+                interaction = context.discord_interaction
+                if interaction:
+                    # 1. Immediately send charging GIF notification
+                    evolution_msg_obj = None
+                    try:
+                        prev_stage = pet_before["stage"]
+                        current_img_url = (
+                            pet_before[f"stage{prev_stage}_img"]
+                            if prev_stage <= 3
+                            else pet_before["mega_img"]
                         )
 
-                    pixel_file = discord.File(
-                        io.BytesIO(pixel_bytes),
-                        filename=f"pet_{updated_pet['id']}_s{new_stage}_pixel.png",
-                    )
+                        if current_img_url:
+                            charging_gif_bytes = (
+                                await self.gacha_service.generate_charging_gif(
+                                    current_img_url, updated_pet["id"]
+                                )
+                            )
 
-                    upload_msg = await image_channel.send(
-                        content=f"Evolved Asset for Pet ID {updated_pet['id']} Stage {new_stage}",
-                        file=pixel_file,
-                    )
+                            charging_file = discord.File(
+                                io.BytesIO(charging_gif_bytes), filename="evolving.gif"
+                            )
 
-                    pixel_url = upload_msg.attachments[0].url
-                    hd_url = pixel_url
+                            embed_evolving = discord.Embed(
+                                title=f"✨ Evolutionary energy is surging! {pet_before['name']} is evolving...",
+                                description=(
+                                    f"{msg}\n\n"
+                                    f"**Current Form**: Stage {prev_stage}\n"
+                                    f"**Evolving Into**: Stage {new_stage} - **{stage_name}**\n\n"
+                                    f"🎨 Charging energy and synthesizing power... Please wait! ⌛"
+                                ),
+                                color=0x5865F2,
+                            )
+                            embed_evolving.set_image(url="attachment://evolving.gif")
+                            evolution_msg_obj = await interaction.followup.send(
+                                embed=embed_evolving, file=charging_file, wait=True
+                            )
+                        else:
+                            evolution_msg_obj = await interaction.followup.send(
+                                content=f"✨ {msg}\n\n{pet_before['name']} is evolving to Stage {new_stage}! Designing new form..."
+                            )
+                    except Exception as e:
+                        logger.error(
+                            f"Failed to send evolution charging status in skill: {e}",
+                            exc_info=True,
+                        )
+                        evolution_msg_obj = await interaction.followup.send(
+                            content=f"✨ {msg}\n\n{pet_before['name']} is evolving to Stage {new_stage}! Designing new form..."
+                        )
 
-                    await self.gacha_service.update_pet_image(
-                        context.user_id,
-                        updated_pet["id"],
-                        stage=new_stage,
-                        hd_url=hd_url,
-                        pixel_url=pixel_url,
-                    )
-                    updated_pet = await self.gacha_service.get_active_pet(
-                        context.user_id
-                    )
+                    # 2. Asynchronously call image generator & build complete evolution GIF
+                    try:
+                        # Fetch prompt for this stage
+                        if new_stage == 2:
+                            prompt = updated_pet["stage2_prompt"]
+                        elif new_stage == 3:
+                            prompt = updated_pet["stage3_prompt"]
+                        else:
+                            prompt = updated_pet["mega_prompt"]
 
-                except Exception as e:
-                    logger.error(
-                        f"Evolution image generation failed in skill: {e}",
-                        exc_info=True,
+                        prev_img_url = (
+                            updated_pet[f"stage{new_stage - 1}_img"]
+                            if new_stage <= 3
+                            else updated_pet["stage3_img"]
+                        )
+
+                        pixel_bytes = await self.gacha_service.generate_evolution_image(
+                            prompt, prev_img_url
+                        )
+
+                        # Build final complete evolution GIF bytes
+                        current_img_url = (
+                            pet_before[f"stage{prev_stage}_img"]
+                            if prev_stage <= 3
+                            else pet_before["mega_img"]
+                        )
+
+                        final_gif_bytes = None
+                        if current_img_url:
+                            try:
+                                final_gif_bytes = await self.gacha_service.generate_complete_evolution_gif(
+                                    current_img_url, pixel_bytes, updated_pet["id"]
+                                )
+                            except Exception as ge:
+                                logger.error(
+                                    f"Failed to generate complete evolution GIF in skill: {ge}",
+                                    exc_info=True,
+                                )
+
+                        # Upload static pixel PNG to Discord Image channel
+                        image_channel = client.get_channel(
+                            settings.GACHA_IMAGE_CHANNEL_ID
+                        )
+                        if not image_channel:
+                            image_channel = await client.fetch_channel(
+                                settings.GACHA_IMAGE_CHANNEL_ID
+                            )
+
+                        pixel_file = discord.File(
+                            io.BytesIO(pixel_bytes),
+                            filename=f"pet_{updated_pet['id']}_s{new_stage}_pixel.png",
+                        )
+
+                        upload_msg = await image_channel.send(
+                            content=f"Evolved Asset for Pet ID {updated_pet['id']} Stage {new_stage}",
+                            file=pixel_file,
+                        )
+
+                        pixel_url = upload_msg.attachments[0].url
+                        hd_url = pixel_url
+
+                        # Save static URL in DB
+                        await self.gacha_service.update_pet_image(
+                            context.user_id,
+                            updated_pet["id"],
+                            stage=new_stage,
+                            hd_url=hd_url,
+                            pixel_url=pixel_url,
+                        )
+
+                        # Upload final GIF to channel if compiled successfully
+                        evolution_gif_url = None
+                        if final_gif_bytes:
+                            gif_file = discord.File(
+                                io.BytesIO(final_gif_bytes),
+                                filename=f"pet_{updated_pet['id']}_s{new_stage}_evolution.gif",
+                            )
+                            gif_upload_msg = await image_channel.send(
+                                content=f"Evolution Anim for Pet ID {updated_pet['id']} Stage {new_stage}",
+                                file=gif_file,
+                            )
+                            evolution_gif_url = gif_upload_msg.attachments[0].url
+
+                        # Refresh updated pet dictionary
+                        updated_pet = await self.gacha_service.get_active_pet(
+                            context.user_id
+                        )
+
+                        # Edit the charging message to show completed evolution with the final animation GIF
+                        embed_final = discord.Embed(
+                            title=f"🎉 EVOLUTION COMPLETE: {updated_pet['name']} has evolved!",
+                            description=(
+                                f"**New Form**: Stage {new_stage} - **{stage_name}**\n"
+                                f"**Level**: {updated_pet['level']} (XP: {updated_pet['exp']}/100)\n"
+                                f"**HP**: {updated_pet['hp']}/100\n\n"
+                                f"**New Description**:\n{updated_pet[f'stage{new_stage}_desc' if new_stage <= 3 else 'mega_desc']}"
+                            ),
+                            color=0x57F287,
+                        )
+
+                        display_img_url = evolution_gif_url or pixel_url
+                        embed_final.set_image(url=display_img_url)
+
+                        if evolution_msg_obj:
+                            await evolution_msg_obj.edit(
+                                embed=embed_final, attachments=[]
+                            )
+                        else:
+                            await interaction.followup.send(embed=embed_final)
+
+                    except Exception as e:
+                        logger.error(
+                            f"Image generation/evolution failed in skill: {e}",
+                            exc_info=True,
+                        )
+                        err_msg = (
+                            f"\n⚠️ Image generation failed for this evolution stage: {e}"
+                        )
+                        if evolution_msg_obj:
+                            embed_err = discord.Embed(
+                                title="❌ Evolution Interrupted",
+                                description=f"{msg}\n\nFailed to finalize evolution graphic: {e}",
+                                color=0xED4245,
+                            )
+                            await evolution_msg_obj.edit(
+                                embed=embed_err, attachments=[]
+                            )
+                        else:
+                            await interaction.followup.send(content=err_msg)
+
+                    # Return success but empty response since we edited/sent the message directly
+                    return SkillResult(
+                        success=True,
+                        message=None,
+                        embed=None,
                     )
-                    msg += f"\n⚠️ Image generation failed for evolution: {e}"
+                else:
+                    # Blocking fallback if no interaction context available
+                    try:
+                        prompt = (
+                            updated_pet[f"stage{new_stage}_prompt"]
+                            if new_stage <= 3
+                            else updated_pet["mega_prompt"]
+                        )
+                        prev_img_url = (
+                            updated_pet[f"stage{new_stage - 1}_img"]
+                            if new_stage <= 3
+                            else updated_pet["stage3_img"]
+                        )
+                        pixel_bytes = await self.gacha_service.generate_evolution_image(
+                            prompt, prev_img_url
+                        )
+                        # We won't do full GIF here, just update image
+                        image_channel = client.get_channel(
+                            settings.GACHA_IMAGE_CHANNEL_ID
+                        )
+                        if not image_channel:
+                            image_channel = await client.fetch_channel(
+                                settings.GACHA_IMAGE_CHANNEL_ID
+                            )
+                        pixel_file = discord.File(
+                            io.BytesIO(pixel_bytes),
+                            filename=f"pet_{updated_pet['id']}_s{new_stage}_pixel.png",
+                        )
+                        upload_msg = await image_channel.send(
+                            content=f"Evolved Asset for Pet ID {updated_pet['id']} Stage {new_stage}",
+                            file=pixel_file,
+                        )
+                        pixel_url = upload_msg.attachments[0].url
+                        await self.gacha_service.update_pet_image(
+                            context.user_id,
+                            updated_pet["id"],
+                            stage=new_stage,
+                            hd_url=pixel_url,
+                            pixel_url=pixel_url,
+                        )
+                        updated_pet = await self.gacha_service.get_active_pet(
+                            context.user_id
+                        )
+                    except Exception as e:
+                        logger.error(
+                            f"Fallback evolution image generation failed: {e}",
+                            exc_info=True,
+                        )
+                        msg += f"\n⚠️ Image generation failed for evolution: {e}"
 
             stage_name = (
                 updated_pet[f"stage{updated_pet['stage']}_name"]

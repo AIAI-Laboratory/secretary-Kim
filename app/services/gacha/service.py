@@ -1,6 +1,5 @@
 import json
 import random
-import httpx
 from typing import Dict, Any, Tuple, Optional
 from google import genai
 from google.genai import types
@@ -117,7 +116,12 @@ class GachaService:
                 "5-6 detailed, complex, epic sentences describing a legendary/god form."
             )
         else:
-            evolution_rules = "• For Common and Epic creatures, you must design all 3 stages. Evolution stages must feel like a coherent progression."
+            evolution_rules = (
+                "• For Common and Epic creatures, you must design all 3 stages. Evolution stages must feel like a coherent progression.\n"
+                "• CRITICAL: You MUST maintain strict design, color, and visual consistency across all stages (stage1, stage2, stage3, mega).\n"
+                "• All stages MUST share the exact same core color palette, base materials, body textures, style, and facial/species characteristics.\n"
+                "• Evolution must represent growth, aging, and power enhancement (e.g. growing larger, getting thicker armor plates, developing horns/wings, more intense elemental effects, transitioning from cute to fierce), NOT transforming into a completely different species or changing colors completely."
+            )
             length_rule = "3–5 detailed sentences."
 
         system_prompt = SYSTEM_PROMPT_TEMPLATE.format(
@@ -151,34 +155,21 @@ class GachaService:
             raise e
 
     async def generate_evolution_image(
-        self, prompt: str, prev_img_url: Optional[str]
+        self, prompt: str, prev_img_url: Optional[str] = None
     ) -> bytes:
         """
         Generate an evolved stage image using PixelLab.
-        Uses the previous stage's image URL as init_image reference if provided.
+        Note: init_image has been disabled for evolved stages to allow distinct visual
+        and structural changes (e.g. growing horns, tails, limbs) while prompt alignment
+        ensures color and style consistency.
         """
-        init_image_bytes = None
-        if prev_img_url:
-            try:
-                async with httpx.AsyncClient(timeout=10.0) as http_client:
-                    resp = await http_client.get(prev_img_url)
-                    if resp.status_code == 200:
-                        init_image_bytes = resp.content
-                        logger.info(
-                            f"Successfully downloaded previous stage image for evolution: {len(init_image_bytes)} bytes"
-                        )
-            except Exception as e:
-                logger.error(f"Failed to fetch previous stage image: {e}")
-
-        # Call PixelLab Service to generate image
+        # Call PixelLab Service to generate image without init_image constraint
         pixel_bytes = await self.pixellab_service.generate_pixel_art(
             prompt=prompt,
             model="pixflux",
             width=128,
             height=128,
             transparent=True,
-            init_image=init_image_bytes,
-            init_image_strength=300,
         )
         return pixel_bytes
 
@@ -422,11 +413,11 @@ class GachaService:
         return True
 
     async def feed_active_pet(
-        self, discord_id: str
+        self, discord_id: str, amount: int = 1
     ) -> Tuple[bool, str, Optional[Dict[str, Any]]]:
         """Feed a fruit to the active pet. Restores HP or gains XP. Triggers evolution if level/XP milestones met."""
         user_path = f"users/{discord_id}"
-        xp_gained = random.randint(15, 30)
+        xp_gained = sum(random.randint(15, 30) for _ in range(amount))
 
         # Result container to pass values back from transaction
         txn_result = {}
@@ -436,9 +427,10 @@ class GachaService:
                 raise ValueError("User profile not found.")
 
             coins = current_data.get("attendance_coins", 100)
-            if coins < 20:
+            cost = 20 * amount
+            if coins < cost:
                 raise ValueError(
-                    f"You don't have enough Coins! (You have: {coins} Coins, need 20 Coins to feed)."
+                    f"You don't have enough Coins! (You have: {coins} Coins, need {cost} Coins to feed {amount} time(s))."
                 )
 
             active_id = current_data.get("active_pet_id")
@@ -454,11 +446,11 @@ class GachaService:
                 raise ValueError("Active pet not found.")
 
             # Deduct coins
-            current_data["attendance_coins"] = coins - 20
+            current_data["attendance_coins"] = coins - cost
 
             # Calculate healing
             old_hp = pet.get("hp", 100)
-            new_hp = min(100, old_hp + 20)
+            new_hp = min(100, old_hp + (20 * amount))
             hp_gained = new_hp - old_hp
             pet["hp"] = new_hp
 
@@ -483,21 +475,22 @@ class GachaService:
             evolution_text = ""
 
             if pet.get("rarity") not in ["Legendary", "God", "Sub-Legendary"]:
-                if new_stage == 1 and new_level >= 15:
+                if new_stage == 1 and new_level >= 5:
                     new_stage = 2
                     evolution_triggered = True
                     evolution_text = f"✨ Evolutionary energy is surging! {pet['name']} is evolving into Stage 2: **{pet['stage2_name']}**!"
-                elif new_stage == 2 and new_level >= 36:
+                elif new_stage == 2 and new_level >= 15:
                     new_stage = 3
                     evolution_triggered = True
                     evolution_text = f"✨ Evolution! {pet['name']} is evolving into its ultimate form, Stage 3: **{pet['stage3_name']}**!"
-                elif new_stage == 3 and pet.get("mega_capable") and new_level >= 50:
+                elif new_stage == 3 and pet.get("mega_capable") and new_level >= 30:
                     new_stage = 4
                     evolution_triggered = True
                     evolution_text = f"🌟 MYTHICAL MEGA EVOLUTION! {pet['name']} has transcended into **{pet['mega_name']}**!"
 
             pet["stage"] = new_stage
-            current_data["pets"][str(active_id)] = pet
+            pets[str(active_id)] = pet
+            current_data["pets"] = pets
 
             # Save outputs
             nonlocal txn_result
@@ -534,7 +527,9 @@ class GachaService:
                 f"🎉 Level up! {res['pet_name']} is now Level {res['new_level']}! "
             )
 
-        full_message = f"You fed a Focus Fruit to {res['pet_name']}. {message}"
+        full_message = (
+            f"You fed {amount} Focus Fruit(s) to {res['pet_name']}. {message}"
+        )
         if res["evolution_triggered"]:
             full_message += f"\n\n{res['evolution_text']}"
 
@@ -544,3 +539,132 @@ class GachaService:
         updated_pet["id"] = int(res["pet_id"])
 
         return True, full_message, updated_pet
+
+    async def align_existing_pet_prompts(
+        self, pet_data: Dict[str, Any]
+    ) -> Dict[str, Any]:
+        """
+        Use Gemini to align/correct Stage 2, Stage 3, and Mega visual prompts of an existing pet
+        to ensure they strictly share the same color palette, design theme, style, and features of Stage 1.
+        """
+        from app.domain.models.gacha import AlignedPrompts
+
+        # If it's legendary or god, they do not evolve, no need to align
+        if pet_data.get("rarity") in ["Legendary", "God"]:
+            return pet_data
+
+        system_prompt = (
+            "You are a world-class pocket monster designer. "
+            "Your task is to fix mismatched evolution prompts. We have a pocket monster whose Stage 1 "
+            "has a specific visual design, color palette, and material composition. "
+            "However, its evolved stages (Stage 2, Stage 3, and/or Mega) are currently described with completely different "
+            "colors, materials, or species attributes, which makes them feel like a different evolutionary line.\n\n"
+            "## Rules:\n"
+            "1. You MUST align the names, descriptions, and visual prompts of Stage 2, Stage 3, and Mega with Stage 1.\n"
+            "2. Keep the exact same core color palette, base materials, body textures, style, and facial characteristics of Stage 1.\n"
+            "3. Make sure the visual prompt describes a larger, older, and more powerful progression of the Stage 1 creature "
+            "(e.g., growing larger, getting thicker armor plates of the same material/color, developing horns/wings, more intense elemental effects, transitioning from cute to fierce), "
+            "not transforming into a completely different species or changing colors.\n"
+            "4. Only describe the creature itself in visual_prompt. Do not include any background or environment."
+        )
+
+        user_input = {
+            "name": pet_data.get("name"),
+            "rarity": pet_data.get("rarity"),
+            "concept": pet_data.get("concept"),
+            "type1": pet_data.get("type1"),
+            "type2": pet_data.get("type2"),
+            "stage1": {
+                "name": pet_data.get("stage1_name"),
+                "description": pet_data.get("stage1_desc"),
+                "visual_prompt": pet_data.get("stage1_prompt"),
+            },
+            "stage2": {
+                "name": pet_data.get("stage2_name"),
+                "description": pet_data.get("stage2_desc"),
+                "visual_prompt": pet_data.get("stage2_prompt"),
+            },
+            "stage3": {
+                "name": pet_data.get("stage3_name"),
+                "description": pet_data.get("stage3_desc"),
+                "visual_prompt": pet_data.get("stage3_prompt"),
+            },
+            "mega": {
+                "name": pet_data.get("mega_name"),
+                "description": pet_data.get("mega_desc"),
+                "visual_prompt": pet_data.get("mega_prompt"),
+            },
+        }
+
+        try:
+            logger.info(
+                f"Aligning existing pet prompts for {pet_data.get('name')} (ID: {pet_data.get('id')})"
+            )
+            response = await self.gemini_client.aio.models.generate_content(
+                model=settings.GEMINI_PRIMARY_MODEL,
+                contents=json.dumps(user_input),
+                config=types.GenerateContentConfig(
+                    system_instruction=system_prompt,
+                    response_mime_type="application/json",
+                    response_schema=AlignedPrompts,
+                    temperature=0.3,
+                ),
+            )
+
+            parsed_data = json.loads(response.text)
+
+            # Update prompts in pet_data dict
+            if parsed_data.get("stage2"):
+                s2 = parsed_data["stage2"]
+                pet_data["stage2_name"] = s2.get("name") or pet_data["stage2_name"]
+                pet_data["stage2_desc"] = (
+                    s2.get("description") or pet_data["stage2_desc"]
+                )
+                pet_data["stage2_prompt"] = (
+                    s2.get("visual_prompt") or pet_data["stage2_prompt"]
+                )
+
+            if parsed_data.get("stage3"):
+                s3 = parsed_data["stage3"]
+                pet_data["stage3_name"] = s3.get("name") or pet_data["stage3_name"]
+                pet_data["stage3_desc"] = (
+                    s3.get("description") or pet_data["stage3_desc"]
+                )
+                pet_data["stage3_prompt"] = (
+                    s3.get("visual_prompt") or pet_data["stage3_prompt"]
+                )
+
+            if parsed_data.get("mega"):
+                m = parsed_data["mega"]
+                pet_data["mega_name"] = m.get("name") or pet_data["mega_name"]
+                pet_data["mega_desc"] = m.get("description") or pet_data["mega_desc"]
+                pet_data["mega_prompt"] = (
+                    m.get("visual_prompt") or pet_data["mega_prompt"]
+                )
+
+            return pet_data
+        except Exception as e:
+            logger.error(f"Failed to align pet prompts: {e}", exc_info=True)
+            return pet_data
+
+    async def generate_charging_gif(self, current_img_url: str, pet_id: int) -> bytes:
+        """Download current stage image and generate a charging GIF."""
+        from app.services.gacha.evolution_animator import (
+            download_image_bytes,
+            generate_charging_gif,
+        )
+
+        current_png_bytes = await download_image_bytes(current_img_url)
+        return generate_charging_gif(current_png_bytes, pet_id)
+
+    async def generate_complete_evolution_gif(
+        self, current_img_url: str, new_png_bytes: bytes, pet_id: int
+    ) -> bytes:
+        """Download current stage image and generate a complete evolution reveal GIF."""
+        from app.services.gacha.evolution_animator import (
+            download_image_bytes,
+            generate_complete_evolution_gif,
+        )
+
+        current_png_bytes = await download_image_bytes(current_img_url)
+        return generate_complete_evolution_gif(current_png_bytes, new_png_bytes, pet_id)

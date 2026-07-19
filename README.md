@@ -37,7 +37,7 @@ Built with modern Python development practices, Secretary Kim is structured usin
 *   **Gemini-Designed Companions**: Roll for completely unique Pokémon companions. Uses Gemini to procedurally design the pet's name, element types (from 18 categories), lore, and visual prompts based on rarity and concepts (across 19 themes).
 *   **AI-Generated Pixel Art**: Uses Cloudflare AI (PixelLab Service) to dynamically render high-quality custom transparent pixel-art images for each pet.
 *   **Pet Feeding & XP**: Spend **20 Coins** to feed your active pet, healing **20 HP** and granting **15-30 XP**.
-*   **Multistage Evolutions**: Common and Epic rarity pets can evolve into Stage 2 (Level 15), Stage 3 (Level 36), and a 20% chance of a Stage 4 Mega Evolution (Level 50), automatically generating newly evolved pixel art. Legendary and God rarity pets do not evolve and remain in their majestic single stage.
+*   **Multistage Evolutions**: Common and Epic rarity pets can evolve into Stage 2 (Level 5), Stage 3 (Level 15), and a 20% chance of a Stage 4 Mega Evolution (Level 30), automatically generating newly evolved pixel art. Legendary and God rarity pets do not evolve and remain in their majestic single stage.
 *   **Pomodoro Focus**: Start Pomodoro focus sessions (default 25 minutes) directly with `/pomodoro-start` or via AI commands to level up focus habits while keeping your pet active.
 
 ---
@@ -99,9 +99,10 @@ The project is structured according to **Clean Architecture** guidelines to sepa
 
 ## 📋 Commands Reference
 
-### AI Assistant Commands
+### AI Assistant & Help Commands
 | Command | Description | Arguments |
 |:---|:---|:---|
+| `/help` | Show all available slash commands of Secretary Kim with interactive pagination. | *None* |
 | `/kim` | Requests the AI to schedule an event or task from your natural language input. | `request` (Text prompt, e.g. details, date/time, assignee, room) |
 
 ### Music Player Commands
@@ -122,7 +123,7 @@ The project is structured according to **Clean Architecture** guidelines to sepa
 | `/gacha` | Roll a new procedural Pokemon companion. | *None* (Costs 100 Coins) |
 | `/pet-active` | View stats, HP, level, and image of your active pet companion. | *None* |
 | `/pet-list` | Display a list of all your pets with an interactive dropdown to switch active companion. | *None* |
-| `/feed` | Feed 20 Coins to your active pet to heal 20 HP, earn XP, and trigger evolutions. | *None* |
+| `/feed` | Feed Fruits to your active pet to heal HP, earn XP, and trigger evolutions. | `amount` (Number of times / fruits to feed, default 1) |
 | `/pomodoro-start` | Start a Pomodoro focus session in your current voice channel. | `duration` (Focus duration in minutes, default 25) |
 | `/pomodoro-cancel` | Cancel your active Pomodoro focus session. | *None* |
 
