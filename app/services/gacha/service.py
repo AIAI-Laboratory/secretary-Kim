@@ -31,6 +31,18 @@ class GachaService:
             )
         self.gemini_client = genai.Client(api_key=settings.GEMINI_API_KEY or None)
 
+    def _normalize_pets(self, pets: Any) -> Dict[str, Any]:
+        """Normalize pets to a dict if it was retrieved as a list from Firebase."""
+        if isinstance(pets, list):
+            pets_dict = {}
+            for idx, p in enumerate(pets):
+                if p is not None:
+                    pets_dict[str(idx)] = p
+            return pets_dict
+        elif isinstance(pets, dict):
+            return pets
+        return {}
+
     async def check_or_create_user(self, db, discord_id: str) -> Dict[str, Any]:
         """Check if user exists; if not, create them with starting currency (200 FP, 2 Fruits, 100 Coins)."""
         path = f"users/{discord_id}"
@@ -306,6 +318,7 @@ class GachaService:
             pets = current_data.get("pets", {})
             if pets is None:
                 pets = {}
+            pets = self._normalize_pets(pets)
             pets[str(pet_id)] = pet_data
             current_data["pets"] = pets
 
@@ -371,6 +384,7 @@ class GachaService:
         if active_id is None:
             return None
         pets = user.get("pets", {})
+        pets = self._normalize_pets(pets)
         pet = pets.get(str(active_id))
         if not pet:
             return None
@@ -383,10 +397,12 @@ class GachaService:
         if not user:
             return []
         pets = user.get("pets", {})
+        pets = self._normalize_pets(pets)
         pet_list = []
         for pid, pdata in pets.items():
-            pdata["id"] = int(pid)
-            pet_list.append(pdata)
+            if pdata is not None:
+                pdata["id"] = int(pid)
+                pet_list.append(pdata)
         # Sort ascending by pet ID
         pet_list.sort(key=lambda x: x["id"])
         return pet_list
@@ -398,6 +414,7 @@ class GachaService:
         if not user:
             return False
         pets = user.get("pets", {})
+        pets = self._normalize_pets(pets)
         if str(pet_id) not in pets:
             return False
 
@@ -431,6 +448,7 @@ class GachaService:
                 )
 
             pets = current_data.get("pets", {})
+            pets = self._normalize_pets(pets)
             pet = pets.get(str(active_id))
             if not pet:
                 raise ValueError("Active pet not found.")
@@ -521,7 +539,8 @@ class GachaService:
             full_message += f"\n\n{res['evolution_text']}"
 
         # Fetch the updated pet
-        updated_pet = updated_user["pets"][str(res["pet_id"])]
+        updated_pets = self._normalize_pets(updated_user.get("pets", {}))
+        updated_pet = updated_pets[str(res["pet_id"])]
         updated_pet["id"] = int(res["pet_id"])
 
         return True, full_message, updated_pet
