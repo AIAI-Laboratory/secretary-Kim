@@ -42,4 +42,3 @@ ENV PYTHONUNBUFFERED=1
 
 # Run the Discord bot using python directly from the virtual environment
 CMD ["python", "main.py"]
-

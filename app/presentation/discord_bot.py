@@ -276,9 +276,7 @@ class MusicCog(commands.Cog):
 
         # Stop the current song. after_playing will automatically play the next song.
         voice_client.stop()
-        embed = discord.Embed(
-            description="⏭️ Skipped the current song.", color=0x5865F2
-        )
+        embed = discord.Embed(description="⏭️ Skipped the current song.", color=0x5865F2)
         await interaction.response.send_message(embed=embed)
 
     @app_commands.command(

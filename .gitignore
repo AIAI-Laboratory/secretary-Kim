@@ -61,6 +61,8 @@ ENV/
 env.bak/
 venv.bak/
 
+keys/
+
 # Project temporary and local files
 temp/
 *.log

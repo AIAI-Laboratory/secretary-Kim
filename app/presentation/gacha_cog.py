@@ -1,7 +1,6 @@
 import io
 import asyncio
-import datetime
-from typing import Dict, Any, Optional
+from typing import Optional
 import discord
 from discord.ext import commands
 from discord import app_commands
@@ -267,19 +266,14 @@ class GachaCog(commands.Cog):
             color=0x5865F2,
         )
         loading_embed.set_image(url=f"attachment://{gif_filename}")
-        loading_msg = await interaction.followup.send(embed=loading_embed, file=loading_file, wait=True)
+        loading_msg = await interaction.followup.send(
+            embed=loading_embed, file=loading_file, wait=True
+        )
 
         try:
             # 2. Verify currency (safe now that we've responded)
-            db = await self.bot.db_service.get_db()
-            try:
-                async with db.execute(
-                    "SELECT attendance_coins FROM users WHERE discord_id = ?", (user_id,)
-                ) as cursor:
-                    coins_row = await cursor.fetchone()
-                coins = coins_row[0] if coins_row else 100
-            finally:
-                await db.close()
+            coins_data = await self.bot.attendance_service.get_user_coins(user_id)
+            coins = coins_data["attendance_coins"]
 
             if coins < 100:
                 embed = discord.Embed(
@@ -290,9 +284,12 @@ class GachaCog(commands.Cog):
                 return
 
             # 3. Roll Gacha (pass pre-rolled attributes)
-            pet_id, pet_dict, hd_bytes, pixel_bytes = (
-                await self.gacha_service.roll_gacha(user_id, pre_rolled_attrs=attrs)
-            )
+            (
+                pet_id,
+                pet_dict,
+                hd_bytes,
+                pixel_bytes,
+            ) = await self.gacha_service.roll_gacha(user_id, pre_rolled_attrs=attrs)
 
             # 3. Upload images to Discord channel to host them
             image_channel = self.bot.get_channel(settings.GACHA_IMAGE_CHANNEL_ID)
@@ -316,7 +313,7 @@ class GachaCog(commands.Cog):
 
             # 4. Update DB
             await self.gacha_service.update_pet_image(
-                pet_id, stage=1, hd_url=hd_url, pixel_url=pixel_url
+                user_id, pet_id, stage=1, hd_url=hd_url, pixel_url=pixel_url
             )
 
             # 5. Show output
@@ -345,8 +342,15 @@ class GachaCog(commands.Cog):
 
         except Exception as e:
             logger.error(f"Gacha slash command failed: {e}", exc_info=True)
+
+            # Check for PixelLab timeout or other PixelLab issues
+            if "PixelLabError" in type(e).__name__ or "timeout" in str(e).lower():
+                err_msg = "❌ Cửa hàng triệu hồi thú cưng đang tạm thời đóng cửa do họa sĩ vẽ pet bị ngất xỉu (API Timeout/Error). Vui lòng thử lại sau nhé! 😴"
+            else:
+                err_msg = "❌ Failed to roll gacha. AI encountered an error. Please try again."
+
             error_embed = discord.Embed(
-                description="❌ Failed to roll gacha. AI encountered an error. Please try again.",
+                description=err_msg,
                 color=0xED4245,
             )
             try:
@@ -413,18 +417,11 @@ class GachaCog(commands.Cog):
             await interaction.response.send_message(embed=embed)
             return
 
-        db = await self.bot.db_service.get_db()
-        try:
-            user_profile = await self.gacha_service.check_or_create_user(db, user_id)
-            active_id = user_profile["active_pet_id"]
+        user_profile = await self.gacha_service.check_or_create_user(None, user_id)
+        active_id = user_profile["active_pet_id"]
 
-            async with db.execute(
-                "SELECT attendance_coins FROM users WHERE discord_id = ?", (user_id,)
-            ) as cursor:
-                coins_row = await cursor.fetchone()
-            coins = coins_row[0] if coins_row else 100
-        finally:
-            await db.close()
+        coins_data = await self.bot.attendance_service.get_user_coins(user_id)
+        coins = coins_data["attendance_coins"]
 
         embed = discord.Embed(
             title=f"🎒 collection: {interaction.user.display_name}'s Companions",
@@ -458,15 +455,8 @@ class GachaCog(commands.Cog):
         user_id = str(interaction.user.id)
 
         # Verify coins first
-        db = await self.bot.db_service.get_db()
-        try:
-            async with db.execute(
-                "SELECT attendance_coins FROM users WHERE discord_id = ?", (user_id,)
-            ) as cursor:
-                row = await cursor.fetchone()
-            coins = row[0] if row else 100
-        finally:
-            await db.close()
+        coins_data = await self.bot.attendance_service.get_user_coins(user_id)
+        coins = coins_data["attendance_coins"]
 
         if coins < 20:
             embed = discord.Embed(
@@ -514,7 +504,6 @@ class GachaCog(commands.Cog):
                 pixel_bytes = await self.gacha_service.generate_evolution_image(
                     prompt, prev_img_url
                 )
-                hd_bytes = pixel_bytes
 
                 # Upload to Discord Image channel
                 image_channel = self.bot.get_channel(settings.GACHA_IMAGE_CHANNEL_ID)
@@ -538,6 +527,7 @@ class GachaCog(commands.Cog):
 
                 # Save URLs in DB
                 await self.gacha_service.update_pet_image(
+                    user_id,
                     updated_pet["id"],
                     stage=new_stage,
                     hd_url=hd_url,
@@ -554,7 +544,7 @@ class GachaCog(commands.Cog):
                 msg += f"\n⚠️ Image generation failed for this evolution stage: {e}"
 
         # Display final response
-        type_str = format_types(updated_pet["type1"], updated_pet["type2"])
+        format_types(updated_pet["type1"], updated_pet["type2"])
         stage_name = (
             updated_pet[f"stage{updated_pet['stage']}_name"]
             if updated_pet["stage"] <= 3

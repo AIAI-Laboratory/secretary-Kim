@@ -1,0 +1,78 @@
+name: Secretary Kim CD
+
+on:
+  release:
+    types: [published]
+
+jobs:
+  deploy:
+    name: Deploy to Production
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Deploy to Host
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USERNAME }}
+          key: ${{ secrets.SSH_KEY }}
+          envs: >-
+            DISCORD_BOT_TOKEN,
+            GEMINI_API_KEY,
+            PIXELLAB_API_KEY,
+            FIREBASE_CREDENTIALS_JSON,
+            FIREBASE_DATABASE_URL,
+            GACHA_IMAGE_CHANNEL_ID,
+            LEADERBOARD_CHANNEL_ID,
+            LB_CHANNEL_ID,
+            GEMINI_PRIMARY_MODEL,
+            GEMINI_FALLBACK_MODEL,
+            CLOUDFLARE_IMAGE_MODEL,
+            CLOUDFLARE_API_TOKEN,
+            CLOUDFLARE_ACCOUNT_ID
+          script: |
+            cd /root/app/kim
+
+            git pull origin main
+
+            TAG_VERSION="${{ github.event.release.tag_name }}"
+            IMAGE_NAME="secretary-kim-bot"
+
+            docker build -t $IMAGE_NAME:$TAG_VERSION -t $IMAGE_NAME:latest .
+
+            docker stop secretary-kim || true
+            docker rm secretary-kim || true
+
+            docker run -d \
+              --name secretary-kim \
+              -e DISCORD_BOT_TOKEN \
+              -e GEMINI_API_KEY \
+              -e PIXELLAB_API_KEY \
+              -e FIREBASE_CREDENTIALS_JSON \
+              -e FIREBASE_DATABASE_URL \
+              -e GACHA_IMAGE_CHANNEL_ID \
+              -e LEADERBOARD_CHANNEL_ID \
+              -e LB_CHANNEL_ID \
+              -e GEMINI_PRIMARY_MODEL="${GEMINI_PRIMARY_MODEL:-gemini-3.1-flash-lite}" \
+              -e GEMINI_FALLBACK_MODEL="${GEMINI_FALLBACK_MODEL:-gemini-3.5-flash}" \
+              -e CLOUDFLARE_IMAGE_MODEL="${CLOUDFLARE_IMAGE_MODEL:-google/imagen-4}" \
+              -e CLOUDFLARE_API_TOKEN \
+              -e CLOUDFLARE_ACCOUNT_ID \
+              --restart unless-stopped \
+              $IMAGE_NAME:$TAG_VERSION
+
+            docker image prune -f
+        env:
+          DISCORD_BOT_TOKEN: ${{ secrets.DISCORD_BOT_TOKEN }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          PIXELLAB_API_KEY: ${{ secrets.PIXELLAB_API_KEY }}
+          FIREBASE_CREDENTIALS_JSON: ${{ secrets.FIREBASE_CREDENTIALS_JSON }}
+          FIREBASE_DATABASE_URL: ${{ vars.FIREBASE_DATABASE_URL }}
+          GACHA_IMAGE_CHANNEL_ID: ${{ vars.GACHA_IMAGE_CHANNEL_ID }}
+          LEADERBOARD_CHANNEL_ID: ${{ vars.LEADERBOARD_CHANNEL_ID }}
+          LB_CHANNEL_ID: ${{ vars.LB_CHANNEL_ID }}
+          GEMINI_PRIMARY_MODEL: ${{ vars.GEMINI_PRIMARY_MODEL }}
+          GEMINI_FALLBACK_MODEL: ${{ vars.GEMINI_FALLBACK_MODEL }}
+          CLOUDFLARE_IMAGE_MODEL: ${{ vars.CLOUDFLARE_IMAGE_MODEL }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}

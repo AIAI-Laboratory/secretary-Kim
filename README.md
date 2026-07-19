@@ -1,6 +1,6 @@
 # 📋 Secretary Kim
 
-Secretary Kim is a premium, feature-rich Discord bot designed to be a personal server assistant. It combines a high-performance **YouTube Music Player** with a state-of-the-art **Gemini-powered Natural Language Event & Task Scheduler**. 
+Secretary Kim is a premium, feature-rich Discord bot designed to be a personal server assistant. It combines a high-performance **YouTube Music Player** with a state-of-the-art **Gemini-powered Natural Language Event & Task Scheduler**.
 
 Built with modern Python development practices, Secretary Kim is structured using **Clean Architecture** patterns and utilizes **Dependency Injection** (`dependency-injector`) for extreme modularity, robustness, and ease of testing.
 
@@ -37,19 +37,19 @@ sequenceDiagram
     participant Bot as Secretary Kim
     participant Gemini as Gemini AI
     participant Admin as User/Admin
-    
+
     User->>Bot: Slash Command: /kim "Create design meeting tomorrow at 3pm with @Duy in Meeting Room"
     Bot->>Bot: Gather server members list & active voice channels
     Bot->>Gemini: Send request text + members & channels mapping + current time context
     Gemini-->>Bot: Returns structured ProposedAction JSON
     Bot->>User: Displays Interactive Draft Embed (Approve / Reject / Edit)
-    
+
     rect rgb(40, 44, 52)
         Note over Admin, Bot: Human-in-the-Loop Approval
         Admin->>Bot: Optional: Click "Edit" -> Fills Modal form -> Update draft
         Admin->>Bot: Click "Approve"
     end
-    
+
     Bot->>Bot: Verify event timeframe (must be future time)
     Bot->>User: Creates Discord Guild Scheduled Event
     Bot->>User: Sends announcement to channel with @everyone ping
@@ -192,6 +192,38 @@ docker run -d --name secretary-kim --env-file .env --restart unless-stopped secr
     ```bash
     uv run python main.py
     ```
+
+---
+
+## 🛠️ Development & Commit Process
+
+This project uses **`pre-commit`** hooks to maintain code quality, consistency, and a clean Git history. The hooks perform the following automated checks on every commit:
+*   **Code Formatting**: Formats Python code using `ruff format`.
+*   **Linting**: Lints Python files and applies auto-fixes using `ruff-check`.
+*   **Lockfile Sync**: Ensures `uv.lock` is up-to-date with `pyproject.toml` using `uv-lock`.
+*   **Sanity Checks**: Verifies YAML syntax, removes trailing whitespace, and fixes end-of-file formatting.
+
+### Setup pre-commit Hooks
+
+Ensure you have run `uv sync` to install `pre-commit` into your local virtual environment:
+
+1.  **Install Git Hooks:**
+    ```bash
+    source .venv/bin/activate
+    pre-commit install
+    ```
+    *Alternatively, you can run directly with `uv run`:*
+    ```bash
+    uv run pre-commit install
+    ```
+
+2.  **Run checks manually (Optional):**
+    To scan all files and verify formatting or lockfile alignment without committing:
+    ```bash
+    uv run pre-commit run --all-files
+    ```
+
+When you run `git commit`, the hooks will run automatically. If a hook formats a file or updates the lockfile, the commit will be rejected. Simply stage the updated changes (`git add <file>`) and run `git commit` again.
 
 ---
 
