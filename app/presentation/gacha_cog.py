@@ -237,9 +237,18 @@ class GachaCog(commands.Cog):
         name="gacha",
         description="Roll a procedural Pokemon companion (Costs 100 Coins)",
     )
-    async def gacha(self, interaction: discord.Interaction):
-        # Acknowledge immediately WITHOUT showing "is thinking..." loading state
-        await interaction.response.defer(thinking=False)
+    @app_commands.describe(
+        private="Show gacha roll result only to you (default: False)"
+    )
+    async def gacha(
+        self, interaction: discord.Interaction, private: Optional[bool] = False
+    ):
+        is_private = bool(private)
+        # Acknowledge immediately
+        if is_private:
+            await interaction.response.defer(ephemeral=True)
+        else:
+            await interaction.response.defer(thinking=False)
 
         user_id = str(interaction.user.id)
 
@@ -267,7 +276,7 @@ class GachaCog(commands.Cog):
         )
         loading_embed.set_image(url=f"attachment://{gif_filename}")
         loading_msg = await interaction.followup.send(
-            embed=loading_embed, file=loading_file, wait=True
+            embed=loading_embed, file=loading_file, wait=True, ephemeral=is_private
         )
 
         try:
@@ -362,7 +371,13 @@ class GachaCog(commands.Cog):
         name="pet-active",
         description="Show stats and image of your active Pokemon companion",
     )
-    async def pet_active(self, interaction: discord.Interaction):
+    @app_commands.describe(
+        private="Show active pet details only to you (default: False)"
+    )
+    async def pet_active(
+        self, interaction: discord.Interaction, private: Optional[bool] = False
+    ):
+        is_private = bool(private)
         user_id = str(interaction.user.id)
         pet = await self.gacha_service.get_active_pet(user_id)
         if not pet:
@@ -370,7 +385,7 @@ class GachaCog(commands.Cog):
                 description="❌ You do not have an active pet. Use `/gacha` to roll a new companion!",
                 color=0xED4245,
             )
-            await interaction.response.send_message(embed=embed)
+            await interaction.response.send_message(embed=embed, ephemeral=is_private)
             return
 
         # Determine current stage details
@@ -401,12 +416,18 @@ class GachaCog(commands.Cog):
         # Look for HD URL to set view button
         # HD is the attachment of the message, but if we don't have it directly stored in DB, we can default or retrieve. Let's build a nice button if we have URLs.
         # Note: we stored pixelated image in stageX_img, HD image can be viewed via Discord attachments if needed, but since we didn't add extra columns for HD urls, we can use pixelated directly or log it. Let's make sure it operates neatly.
-        await interaction.response.send_message(embed=embed)
+        await interaction.response.send_message(embed=embed, ephemeral=is_private)
 
     @app_commands.command(
         name="pet-list", description="List all Pokemon companions in your collection"
     )
-    async def pet_list(self, interaction: discord.Interaction):
+    @app_commands.describe(
+        private="Show pet collection inventory only to you (default: True)"
+    )
+    async def pet_list(
+        self, interaction: discord.Interaction, private: Optional[bool] = True
+    ):
+        is_private = True if private is None else bool(private)
         user_id = str(interaction.user.id)
         pets = await self.gacha_service.get_user_pets(user_id)
         if not pets:
@@ -414,7 +435,7 @@ class GachaCog(commands.Cog):
                 description="❌ Your inventory is empty. Join voice rooms to earn Coins, then use `/gacha`!",
                 color=0xED4245,
             )
-            await interaction.response.send_message(embed=embed)
+            await interaction.response.send_message(embed=embed, ephemeral=is_private)
             return
 
         user_profile = await self.gacha_service.check_or_create_user(None, user_id)
@@ -442,18 +463,27 @@ class GachaCog(commands.Cog):
 
         # Display dropdown selector to set active companion
         view = PetListView(pets, self)
-        await interaction.response.send_message(embed=embed, view=view)
+        await interaction.response.send_message(
+            embed=embed, view=view, ephemeral=is_private
+        )
 
     @app_commands.command(
         name="feed",
         description="Feed Fruits to your active companion (+XP, +HP, trigger evolutions)",
     )
     @app_commands.describe(
-        amount="Number of times / fruits to feed (default 1, must be positive)"
+        amount="Number of times / fruits to feed (default 1, must be positive)",
+        private="Show feeding & evolution result only to you (default: False)",
     )
-    async def feed(self, interaction: discord.Interaction, amount: Optional[int] = 1):
+    async def feed(
+        self,
+        interaction: discord.Interaction,
+        amount: Optional[int] = 1,
+        private: Optional[bool] = False,
+    ):
+        is_private = bool(private)
         # Defer immediately to avoid timeout (3-second window)
-        await interaction.response.defer()
+        await interaction.response.defer(ephemeral=is_private)
 
         if amount is None:
             amount = 1
@@ -463,7 +493,7 @@ class GachaCog(commands.Cog):
                 description="❌ Feeding amount must be a positive integer!",
                 color=0xED4245,
             )
-            await interaction.followup.send(embed=embed)
+            await interaction.followup.send(embed=embed, ephemeral=is_private)
             return
 
         user_id = str(interaction.user.id)
@@ -478,7 +508,7 @@ class GachaCog(commands.Cog):
                 description=f"❌ You do not have enough Coins! (You have: {coins} Coins, need: {cost} Coins to feed {amount} time(s)). Join voice rooms to earn more!",
                 color=0xED4245,
             )
-            await interaction.followup.send(embed=embed)
+            await interaction.followup.send(embed=embed, ephemeral=is_private)
             return
 
         # Fetch current pet and state before feeding
@@ -488,7 +518,7 @@ class GachaCog(commands.Cog):
                 description="❌ You do not have an active pet. Use `/gacha` to roll a new companion!",
                 color=0xED4245,
             )
-            await interaction.followup.send(embed=embed)
+            await interaction.followup.send(embed=embed, ephemeral=is_private)
             return
 
         # Call feed active pet
@@ -497,7 +527,7 @@ class GachaCog(commands.Cog):
         )
         if not success:
             embed = discord.Embed(description=f"❌ {msg}", color=0xED4245)
-            await interaction.followup.send(embed=embed)
+            await interaction.followup.send(embed=embed, ephemeral=is_private)
             return
 
         # Check for evolution
@@ -540,18 +570,23 @@ class GachaCog(commands.Cog):
                     )
                     embed_evolving.set_image(url="attachment://evolving.gif")
                     evolution_msg_obj = await interaction.followup.send(
-                        embed=embed_evolving, file=charging_file, wait=True
+                        embed=embed_evolving,
+                        file=charging_file,
+                        wait=True,
+                        ephemeral=is_private,
                     )
                 else:
                     evolution_msg_obj = await interaction.followup.send(
-                        content=f"✨ {msg}\n\n{pet_before['name']} is evolving to Stage {new_stage}! Designing new form..."
+                        content=f"✨ {msg}\n\n{pet_before['name']} is evolving to Stage {new_stage}! Designing new form...",
+                        ephemeral=is_private,
                     )
             except Exception as e:
                 logger.error(
                     f"Failed to send evolution charging status: {e}", exc_info=True
                 )
                 evolution_msg_obj = await interaction.followup.send(
-                    content=f"✨ {msg}\n\n{pet_before['name']} is evolving to Stage {new_stage}! Designing new form..."
+                    content=f"✨ {msg}\n\n{pet_before['name']} is evolving to Stage {new_stage}! Designing new form...",
+                    ephemeral=is_private,
                 )
 
             # 2. Asynchronously call image generator & build complete evolution GIF
@@ -660,7 +695,9 @@ class GachaCog(commands.Cog):
                 if evolution_msg_obj:
                     await evolution_msg_obj.edit(embed=embed_final, attachments=[])
                 else:
-                    await interaction.followup.send(embed=embed_final)
+                    await interaction.followup.send(
+                        embed=embed_final, ephemeral=is_private
+                    )
 
             except Exception as e:
                 logger.error(f"Image generation/evolution failed: {e}", exc_info=True)
@@ -685,7 +722,9 @@ class GachaCog(commands.Cog):
                     )
                     await evolution_msg_obj.edit(embed=embed_err, attachments=[])
                 else:
-                    await interaction.followup.send(content=err_msg)
+                    await interaction.followup.send(
+                        content=err_msg, ephemeral=is_private
+                    )
 
             return
 
@@ -716,4 +755,4 @@ class GachaCog(commands.Cog):
         if img_url:
             embed.set_image(url=img_url)
 
-        await interaction.followup.send(embed=embed)
+        await interaction.followup.send(embed=embed, ephemeral=is_private)
