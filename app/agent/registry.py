@@ -1,7 +1,9 @@
-from typing import Dict, List, Any
+from typing import Any
+
 from google.genai import types
-from app.agent.skills.base import BaseSkill
+
 from app.agent.models import SkillContext, SkillResult
+from app.agent.skills.base import BaseSkill
 
 
 class SkillRegistry:
@@ -11,7 +13,7 @@ class SkillRegistry:
     """
 
     def __init__(self):
-        self._skills: Dict[str, BaseSkill] = {}
+        self._skills: dict[str, BaseSkill] = {}
 
     def register(self, skill: BaseSkill) -> None:
         """
@@ -23,7 +25,7 @@ class SkillRegistry:
             )
         self._skills[skill.name] = skill
 
-    def get_all_function_declarations(self) -> List[types.FunctionDeclaration]:
+    def get_all_function_declarations(self) -> list[types.FunctionDeclaration]:
         """
         Collect and return the list of FunctionDeclaration from all registered skills.
         """
@@ -42,7 +44,7 @@ class SkillRegistry:
         return "\n".join(descriptions)
 
     async def dispatch(
-        self, function_name: str, args: Dict[str, Any], context: SkillContext
+        self, function_name: str, args: dict[str, Any], context: SkillContext
     ) -> SkillResult:
         """
         Search for which skill owns function_name and forward the execution to that skill.

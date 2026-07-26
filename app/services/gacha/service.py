@@ -1,26 +1,29 @@
 import json
 import random
-from typing import Dict, Any, Tuple, Optional
+from typing import Any
+
 from google import genai
 from google.genai import types
+
 from app.core.config import settings
 from app.core.logger import get_logger
 from app.services.database import DatabaseService
 from app.services.pixellab import PixelLabService
-from .constants import TYPES, TYPE_EMOJIS, CONCEPTS
+
+from .constants import CONCEPTS, TYPE_EMOJIS, TYPES
 from .prompts import (
-    SYSTEM_PROMPT_TEMPLATE,
-    SINGLE_STAGE_EVOLUTION_RULES_TEMPLATE,
-    SINGLE_STAGE_LENGTH_RULE,
+    ALIGN_PROMPTS_SYSTEM_PROMPT,
     MULTI_STAGE_EVOLUTION_RULES,
     MULTI_STAGE_LENGTH_RULE,
-    ALIGN_PROMPTS_SYSTEM_PROMPT,
+    SINGLE_STAGE_EVOLUTION_RULES_TEMPLATE,
+    SINGLE_STAGE_LENGTH_RULE,
+    SYSTEM_PROMPT_TEMPLATE,
 )
 
 logger = get_logger(__name__)
 
 
-def format_types(type1: str, type2: Optional[str] = None) -> str:
+def format_types(type1: str, type2: str | None = None) -> str:
     t1 = TYPE_EMOJIS.get(type1, type1)
     if type2:
         t2 = TYPE_EMOJIS.get(type2, type2)
@@ -38,7 +41,7 @@ class GachaService:
             )
         self.gemini_client = genai.Client(api_key=settings.GEMINI_API_KEY or None)
 
-    def _normalize_pets(self, pets: Any) -> Dict[str, Any]:
+    def _normalize_pets(self, pets: Any) -> dict[str, Any]:
         """Normalize pets to a dict if it was retrieved as a list from Firebase."""
         if isinstance(pets, list):
             pets_dict = {}
@@ -50,7 +53,7 @@ class GachaService:
             return pets
         return {}
 
-    async def check_or_create_user(self, db, discord_id: str) -> Dict[str, Any]:
+    async def check_or_create_user(self, db, discord_id: str) -> dict[str, Any]:
         """Check if user exists; if not, create them with starting currency (200 FP, 2 Fruits, 100 Coins)."""
         path = f"users/{discord_id}"
         user = await self.db_service.get_data(path)
@@ -85,7 +88,7 @@ class GachaService:
             "active_pet_id": user.get("active_pet_id"),
         }
 
-    def _roll_attributes(self) -> Dict[str, Any]:
+    def _roll_attributes(self) -> dict[str, Any]:
         """Roll random attributes for a new Pokemon."""
         num_types = random.choices([1, 2], weights=[50, 50])[0]
         selected_types = random.sample(TYPES, num_types)
@@ -112,7 +115,7 @@ class GachaService:
             "mega_capable": mega_capable,
         }
 
-    async def _call_gemini_llm(self, attrs: Dict[str, Any]) -> Dict[str, Any]:
+    async def _call_gemini_llm(self, attrs: dict[str, Any]) -> dict[str, Any]:
         """Call Gemini to design the creature stages using structured output schema."""
         from app.domain.models.gacha import GachaPetDesign
 
@@ -153,12 +156,12 @@ class GachaService:
 
             parsed_data = json.loads(response.text)
             return parsed_data
-        except Exception as e:
-            logger.error(f"Gemini Gacha LLM generation failed: {e}", exc_info=True)
-            raise e
+        except Exception:
+            logger.exception("Gemini Gacha LLM generation failed")
+            raise
 
     async def generate_evolution_image(
-        self, prompt: str, prev_img_url: Optional[str] = None
+        self, prompt: str, prev_img_url: str | None = None
     ) -> bytes:
         """
         Generate an evolved stage image using PixelLab.
@@ -177,8 +180,8 @@ class GachaService:
         return pixel_bytes
 
     async def roll_gacha(
-        self, discord_id: str, pre_rolled_attrs: Optional[Dict[str, Any]] = None
-    ) -> Tuple[int, Dict[str, Any], bytes, bytes]:
+        self, discord_id: str, pre_rolled_attrs: dict[str, Any] | None = None
+    ) -> tuple[int, dict[str, Any], bytes, bytes]:
         """
         Deduct coins, roll attributes, call LLM to generate descriptions,
         call Image Gen for Stage 1, resize to pixel art, and save pet in DB.
@@ -233,7 +236,7 @@ class GachaService:
             logger.warning(
                 f"Image generation failed for user {discord_id}. Pending gacha remains saved: {e}"
             )
-            raise e
+            raise
 
         # 3. Save pet details (once image gen succeeds)
         stage1_name = stage1.get("name", "")
@@ -368,8 +371,8 @@ class GachaService:
             )
 
     async def get_active_pet(
-        self, discord_id: str, db: Optional[Any] = None
-    ) -> Optional[Dict[str, Any]]:
+        self, discord_id: str, db: Any | None = None
+    ) -> dict[str, Any] | None:
         """Retrieve active pet details for a user."""
         user = await self.db_service.get_data(f"users/{discord_id}")
         if not user:
@@ -385,7 +388,7 @@ class GachaService:
         pet["id"] = int(active_id)
         return pet
 
-    async def get_user_pets(self, discord_id: str) -> list[Dict[str, Any]]:
+    async def get_user_pets(self, discord_id: str) -> list[dict[str, Any]]:
         """Retrieve all pets owned by a user."""
         user = await self.db_service.get_data(f"users/{discord_id}")
         if not user:
@@ -417,7 +420,7 @@ class GachaService:
 
     async def feed_active_pet(
         self, discord_id: str, amount: int = 1
-    ) -> Tuple[bool, str, Optional[Dict[str, Any]]]:
+    ) -> tuple[bool, str, dict[str, Any] | None]:
         """Feed a fruit to the active pet. Restores HP or gains XP. Triggers evolution if level/XP milestones met."""
         user_path = f"users/{discord_id}"
         xp_gained = sum(random.randint(15, 30) for _ in range(amount))
@@ -515,7 +518,7 @@ class GachaService:
             updated_user = await self.db_service.run_transaction(user_path, feed_txn)
         except ValueError as ve:
             return False, str(ve), None
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             logger.error(f"Feed transaction failed: {e}")
             return False, f"Feeding failed due to database error: {e}", None
 
@@ -544,8 +547,8 @@ class GachaService:
         return True, full_message, updated_pet
 
     async def align_existing_pet_prompts(
-        self, pet_data: Dict[str, Any]
-    ) -> Dict[str, Any]:
+        self, pet_data: dict[str, Any]
+    ) -> dict[str, Any]:
         """
         Use Gemini to align/correct Stage 2, Stage 3, and Mega visual prompts of an existing pet
         to ensure they strictly share the same color palette, design theme, style, and features of Stage 1.
@@ -633,8 +636,8 @@ class GachaService:
                 )
 
             return pet_data
-        except Exception as e:
-            logger.error(f"Failed to align pet prompts: {e}", exc_info=True)
+        except Exception:
+            logger.exception("Failed to align pet prompts")
             return pet_data
 
     async def generate_charging_gif(self, current_img_url: str, pet_id: int) -> bytes:

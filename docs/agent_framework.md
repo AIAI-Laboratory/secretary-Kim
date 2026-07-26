@@ -99,6 +99,7 @@ from google.genai import types
 from app.agent.skills.base import BaseSkill
 from app.agent.models import SkillContext, SkillResult
 
+
 class WeatherSkill(BaseSkill):
     @property
     def name(self) -> str:
@@ -118,22 +119,26 @@ class WeatherSkill(BaseSkill):
                     "properties": {
                         "location": {
                             "type": "STRING",
-                            "description": "City name and optional country (e.g. 'Hanoi, Vietnam')"
+                            "description": "City name and optional country (e.g. 'Hanoi, Vietnam')",
                         }
                     },
-                    "required": ["location"]
-                }
+                    "required": ["location"],
+                },
             )
         ]
 
-    async def execute(self, function_name: str, args: Dict[str, Any], context: SkillContext) -> SkillResult:
+    async def execute(
+        self, function_name: str, args: Dict[str, Any], context: SkillContext
+    ) -> SkillResult:
         if function_name == "get_current_weather":
             location = args.get("location")
             # Implement integration with weather APIs / business service here
             result_msg = f"The weather in {location} is currently sunny, 32°C."
             return SkillResult(success=True, message=result_msg)
 
-        return SkillResult(success=False, message=f"Action '{function_name}' not supported.")
+        return SkillResult(
+            success=False, message=f"Action '{function_name}' not supported."
+        )
 ```
 
 ### Step 3.2: Register the Service & Skill
@@ -144,6 +149,7 @@ Instantiate the service and skill, then add it to the `SkillRegistry` inside you
 from app.agent.registry import SkillRegistry
 from app.agent.skills.weather_skill import WeatherSkill
 
+
 class Container(containers.DeclarativeContainer):
     # Registry
     skill_registry = providers.Singleton(SkillRegistry)
@@ -153,6 +159,7 @@ class Container(containers.DeclarativeContainer):
         WeatherSkill,
         # Inject dependencies or APIs here
     )
+
 
 # In your startup/initialization sequence (main.py):
 registry = container.skill_registry()

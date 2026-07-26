@@ -1,6 +1,7 @@
 import base64
+
 import httpx
-from typing import Optional
+
 from app.core.config import settings
 from app.core.logger import get_logger
 
@@ -10,13 +11,9 @@ logger = get_logger(__name__)
 class PixelLabError(Exception):
     """Base exception for PixelLab Service errors."""
 
-    pass
-
 
 class PaymentRequiredError(PixelLabError):
     """Exception raised when API returns 402 Insufficient credits."""
-
-    pass
 
 
 class PixelLabService:
@@ -30,7 +27,7 @@ class PixelLabService:
         width: int = 128,
         height: int = 128,
         transparent: bool = True,
-        init_image: Optional[bytes] = None,
+        init_image: bytes | None = None,
         init_image_strength: int = 300,
     ) -> bytes:
         """
@@ -74,8 +71,9 @@ class PixelLabService:
         }
 
         if init_image:
-            from PIL import Image
             import io
+
+            from PIL import Image
 
             try:
                 img = Image.open(io.BytesIO(init_image))
@@ -83,7 +81,7 @@ class PixelLabService:
                 logger.info(
                     f"Auto-adjusting generation size to match init_image size: {width}x{height}"
                 )
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001
                 logger.warning(f"Failed to read init_image size: {e}")
 
         payload = {
@@ -110,7 +108,7 @@ class PixelLabService:
                 response = await client.post(endpoint, headers=headers, json=payload)
             except Exception as e:
                 logger.error(f"Failed to connect to PixelLab API: {e}")
-                raise PixelLabError(f"Failed to connect to PixelLab API: {e}")
+                raise PixelLabError(f"Failed to connect to PixelLab API: {e}") from e
 
             if response.status_code == 402:
                 logger.warning("PixelLab API returned 402: Insufficient credits.")
@@ -134,6 +132,8 @@ class PixelLabService:
                     base64_data = base64_data.split(",", 1)[1]
 
                 return base64.b64decode(base64_data)
+            except PixelLabError:
+                raise
             except Exception as e:
                 logger.error(f"Failed to parse PixelLab response: {e}")
-                raise PixelLabError(f"Failed to parse PixelLab response: {e}")
+                raise PixelLabError(f"Failed to parse PixelLab response: {e}") from e

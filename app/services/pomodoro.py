@@ -1,5 +1,6 @@
 import datetime
-from typing import Dict, Any, Tuple, Optional
+from typing import Any
+
 from app.core.logger import get_logger
 from app.services.database import DatabaseService
 from app.services.gacha import GachaService
@@ -18,7 +19,7 @@ class PomodoroService:
         channel_id: str,
         text_channel_id: str,
         duration_mins: int = 25,
-    ) -> Tuple[bool, str]:
+    ) -> tuple[bool, str]:
         """Start a new Pomodoro session for the user."""
         await self.gacha_service.check_or_create_user(None, discord_id)
 
@@ -27,7 +28,7 @@ class PomodoroService:
         if session:
             return False, "You already have an active Pomodoro session!"
 
-        now_iso = datetime.datetime.now(datetime.timezone.utc).isoformat()
+        now_iso = datetime.datetime.now(datetime.UTC).isoformat()
 
         await self.db_service.update_data(
             f"users/{discord_id}/pomodoro",
@@ -48,8 +49,8 @@ class PomodoroService:
         )
 
     async def get_active_session(
-        self, discord_id: str, db: Optional[Any] = None
-    ) -> Optional[Dict[str, Any]]:
+        self, discord_id: str, db: Any | None = None
+    ) -> dict[str, Any] | None:
         """Retrieve the active Pomodoro session details for the user."""
         pomo_data = await self.db_service.get_data(f"users/{discord_id}/pomodoro")
         if not pomo_data or not pomo_data.get("start_time"):
@@ -62,7 +63,7 @@ class PomodoroService:
             "duration_mins": pomo_data.get("duration_mins", 25),
         }
 
-    async def check_session_status(self, discord_id: str) -> Tuple[bool, int, int]:
+    async def check_session_status(self, discord_id: str) -> tuple[bool, int, int]:
         """
         Check if user's focus session is completed.
         Returns: (is_completed, elapsed_seconds, remaining_seconds)
@@ -71,7 +72,7 @@ class PomodoroService:
         if not session:
             return False, 0, 0
 
-        now = datetime.datetime.now(datetime.timezone.utc)
+        now = datetime.datetime.now(datetime.UTC)
         elapsed = (now - session["start_time"]).total_seconds()
         target = session["duration_mins"] * 60
 
@@ -82,7 +83,7 @@ class PomodoroService:
 
     async def complete_session(
         self, discord_id: str
-    ) -> Tuple[bool, str, Dict[str, Any]]:
+    ) -> tuple[bool, str, dict[str, Any]]:
         """Complete the active focus session without any currency rewards."""
         session = await self.get_active_session(discord_id)
         if not session:
@@ -100,7 +101,7 @@ class PomodoroService:
 
     async def cancel_session(
         self, discord_id: str, penalize: bool = True
-    ) -> Tuple[bool, str]:
+    ) -> tuple[bool, str]:
         """Cancel the active focus session without any penalty."""
         session = await self.get_active_session(discord_id)
         if not session:

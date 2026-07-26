@@ -1,12 +1,13 @@
-import io
 import asyncio
-from typing import Optional
+import io
+
 import discord
-from discord.ext import commands
 from discord import app_commands
+from discord.ext import commands
+
 from app.core.config import settings
 from app.core.logger import get_logger
-from app.services.gacha import GachaService, RARITY_STYLING, format_types
+from app.services.gacha import RARITY_STYLING, GachaService, format_types
 from app.services.pomodoro import PomodoroService
 
 logger = get_logger(__name__)
@@ -83,7 +84,7 @@ class GachaCog(commands.Cog):
     )
     @app_commands.describe(duration="Focus duration in minutes (default 25)")
     async def pomodoro_start(
-        self, interaction: discord.Interaction, duration: Optional[int] = 25
+        self, interaction: discord.Interaction, duration: int | None = 25
     ):
         if not interaction.user.voice or not interaction.user.voice.channel:
             embed = discord.Embed(
@@ -179,7 +180,7 @@ class GachaCog(commands.Cog):
             return
 
         # Success!
-        success, msg, data = await self.pomodoro_service.complete_session(user_id)
+        success, msg, _data = await self.pomodoro_service.complete_session(user_id)
         if success:
             channel = self.bot.get_channel(text_channel_id)
             if channel:
@@ -241,7 +242,7 @@ class GachaCog(commands.Cog):
         private="Show gacha roll result only to you (default: False)"
     )
     async def gacha(
-        self, interaction: discord.Interaction, private: Optional[bool] = False
+        self, interaction: discord.Interaction, private: bool | None = False
     ):
         is_private = bool(private)
         # Acknowledge immediately
@@ -296,7 +297,7 @@ class GachaCog(commands.Cog):
             (
                 pet_id,
                 pet_dict,
-                hd_bytes,
+                _hd_bytes,
                 pixel_bytes,
             ) = await self.gacha_service.roll_gacha(user_id, pre_rolled_attrs=attrs)
 
@@ -350,7 +351,7 @@ class GachaCog(commands.Cog):
             await loading_msg.edit(embed=embed, attachments=[], view=view)
 
         except Exception as e:
-            logger.error(f"Gacha slash command failed: {e}", exc_info=True)
+            logger.exception("Gacha slash command failed")
 
             # Check for PixelLab timeout or other PixelLab issues
             if "PixelLabError" in type(e).__name__ or "timeout" in str(e).lower():
@@ -364,8 +365,8 @@ class GachaCog(commands.Cog):
             )
             try:
                 await loading_msg.edit(embed=error_embed, attachments=[])
-            except Exception:
-                pass
+            except (discord.HTTPException, discord.DiscordException) as edit_err:
+                logger.debug("Could not edit loading_msg: %s", edit_err)
 
     @app_commands.command(
         name="pet-active",
@@ -375,7 +376,7 @@ class GachaCog(commands.Cog):
         private="Show active pet details only to you (default: False)"
     )
     async def pet_active(
-        self, interaction: discord.Interaction, private: Optional[bool] = False
+        self, interaction: discord.Interaction, private: bool | None = False
     ):
         is_private = bool(private)
         user_id = str(interaction.user.id)
@@ -425,7 +426,7 @@ class GachaCog(commands.Cog):
         private="Show pet collection inventory only to you (default: True)"
     )
     async def pet_list(
-        self, interaction: discord.Interaction, private: Optional[bool] = True
+        self, interaction: discord.Interaction, private: bool | None = True
     ):
         is_private = True if private is None else bool(private)
         user_id = str(interaction.user.id)
@@ -478,8 +479,8 @@ class GachaCog(commands.Cog):
     async def feed(
         self,
         interaction: discord.Interaction,
-        amount: Optional[int] = 1,
-        private: Optional[bool] = False,
+        amount: int | None = 1,
+        private: bool | None = False,
     ):
         is_private = bool(private)
         # Defer immediately to avoid timeout (3-second window)
@@ -580,10 +581,8 @@ class GachaCog(commands.Cog):
                         content=f"✨ {msg}\n\n{pet_before['name']} is evolving to Stage {new_stage}! Designing new form...",
                         ephemeral=is_private,
                     )
-            except Exception as e:
-                logger.error(
-                    f"Failed to send evolution charging status: {e}", exc_info=True
-                )
+            except Exception:
+                logger.exception("Failed to send evolution charging status")
                 evolution_msg_obj = await interaction.followup.send(
                     content=f"✨ {msg}\n\n{pet_before['name']} is evolving to Stage {new_stage}! Designing new form...",
                     ephemeral=is_private,
@@ -625,11 +624,8 @@ class GachaCog(commands.Cog):
                                 current_img_url, pixel_bytes, updated_pet["id"]
                             )
                         )
-                    except Exception as ge:
-                        logger.error(
-                            f"Failed to generate complete evolution GIF: {ge}",
-                            exc_info=True,
-                        )
+                    except Exception:
+                        logger.exception("Failed to generate complete evolution GIF")
 
                 # Upload static pixel PNG to Discord Image channel
                 image_channel = self.bot.get_channel(settings.GACHA_IMAGE_CHANNEL_ID)
@@ -700,7 +696,7 @@ class GachaCog(commands.Cog):
                     )
 
             except Exception as e:
-                logger.error(f"Image generation/evolution failed: {e}", exc_info=True)
+                logger.exception("Image generation/evolution failed")
                 err_msg = f"\n⚠️ Image generation failed for this evolution stage: {e}"
 
                 # Rollback pet stage in DB so the user can attempt evolution again later
@@ -708,8 +704,8 @@ class GachaCog(commands.Cog):
                     await self.gacha_service.rollback_pet_stage(
                         user_id, updated_pet["id"], pet_before["stage"]
                     )
-                except Exception as re:
-                    logger.error(f"Failed to rollback pet stage: {re}", exc_info=True)
+                except Exception:
+                    logger.exception("Failed to rollback pet stage")
 
                 if evolution_msg_obj:
                     embed_err = discord.Embed(

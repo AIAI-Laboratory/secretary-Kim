@@ -1,7 +1,9 @@
 import datetime
 import hashlib
-from typing import Any, Dict, List, Optional
+from typing import Any
+
 import discord
+
 from app.core.config import settings
 from app.core.logger import get_logger
 from app.services.database import DatabaseService
@@ -17,12 +19,12 @@ class AttendanceService:
 
     def __init__(self, db_service: DatabaseService):
         self.db_service = db_service
-        self._last_leaderboard_hash: Optional[str] = None
-        self._leaderboard_msg_id: Optional[int] = None
+        self._last_leaderboard_hash: str | None = None
+        self._leaderboard_msg_id: int | None = None
 
     async def get_user_coins(
-        self, discord_id: str, db: Optional[Any] = None
-    ) -> Dict[str, Any]:
+        self, discord_id: str, db: Any | None = None
+    ) -> dict[str, Any]:
         """
         Get the user's current attendance coins and accumulated minutes.
         Creates the user entry with default values if they do not exist in Firebase.
@@ -49,8 +51,8 @@ class AttendanceService:
         }
 
     async def get_leaderboard_data(
-        self, limit: int = 10, db: Optional[Any] = None
-    ) -> List[Dict[str, Any]]:
+        self, limit: int = 10, db: Any | None = None
+    ) -> list[dict[str, Any]]:
         """
         Fetch top users ordered by coins, then by accumulated minutes from Firebase.
         Only displays users with > 0 coins or minutes.
@@ -126,7 +128,7 @@ class AttendanceService:
             await self.update_leaderboard_channel(bot)
 
     async def update_leaderboard_channel(
-        self, bot: discord.Client, db: Optional[Any] = None
+        self, bot: discord.Client, db: Any | None = None
     ) -> None:
         """
         Builds the current top leaderboard Embed and edits/creates the message in the leaderboard channel.
@@ -143,7 +145,7 @@ class AttendanceService:
         if not channel:
             try:
                 channel = await bot.fetch_channel(channel_id)
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001
                 logger.error(f"Failed to fetch leaderboard channel {channel_id}: {e}")
                 return
 
@@ -202,19 +204,22 @@ class AttendanceService:
                 leaderboard_msg = await channel.fetch_message(self._leaderboard_msg_id)
             except discord.NotFound:
                 self._leaderboard_msg_id = None
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001
                 logger.warning(f"Error fetching cached leaderboard message: {e}")
 
         # If not found in cache, scan last 100 messages for auto-discovery
         if not leaderboard_msg:
             try:
                 async for msg in channel.history(limit=100):
-                    if msg.author.id == bot.user.id and msg.embeds:
-                        if "ATTENDANCE LEADERBOARD" in str(msg.embeds[0].title):
-                            leaderboard_msg = msg
-                            self._leaderboard_msg_id = msg.id
-                            break
-            except Exception as e:
+                    if (
+                        msg.author.id == bot.user.id
+                        and msg.embeds
+                        and "ATTENDANCE LEADERBOARD" in str(msg.embeds[0].title)
+                    ):
+                        leaderboard_msg = msg
+                        self._leaderboard_msg_id = msg.id
+                        break
+            except Exception as e:  # noqa: BLE001
                 logger.error(f"Error scanning channel history: {e}")
 
         try:
@@ -224,5 +229,5 @@ class AttendanceService:
                 new_msg = await channel.send(embed=embed)
                 self._leaderboard_msg_id = new_msg.id
             self._last_leaderboard_hash = data_hash
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             logger.error(f"Failed to post/edit leaderboard message: {e}")

@@ -1,5 +1,4 @@
 from pydantic import BaseModel, Field
-from typing import Optional
 
 
 class EvolutionStage(BaseModel):
@@ -18,25 +17,21 @@ class GachaPetDesign(BaseModel):
     stage1: EvolutionStage = Field(
         description="Stage 1 (baby/basic/only form) design details"
     )
-    stage2: Optional[EvolutionStage] = Field(
+    stage2: EvolutionStage | None = Field(
         None,
         description="Stage 2 (evolved/mid form) design details. MUST be null/None for Legendary and God rarities.",
     )
-    stage3: Optional[EvolutionStage] = Field(
+    stage3: EvolutionStage | None = Field(
         None,
         description="Stage 3 (final/epic form) design details. MUST be null/None for Legendary and God rarities.",
     )
-    mega: Optional[EvolutionStage] = Field(
+    mega: EvolutionStage | None = Field(
         None,
         description="Mega form design details (None/null if not capable or if Legendary/God)",
     )
 
 
 class AlignedPrompts(BaseModel):
-    stage2: Optional[EvolutionStage] = Field(
-        None, description="Stage 2 aligned prompts"
-    )
-    stage3: Optional[EvolutionStage] = Field(
-        None, description="Stage 3 aligned prompts"
-    )
-    mega: Optional[EvolutionStage] = Field(None, description="Mega aligned prompts")
+    stage2: EvolutionStage | None = Field(None, description="Stage 2 aligned prompts")
+    stage3: EvolutionStage | None = Field(None, description="Stage 3 aligned prompts")
+    mega: EvolutionStage | None = Field(None, description="Mega aligned prompts")

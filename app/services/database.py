@@ -1,9 +1,11 @@
 import asyncio
 import json
+from typing import Any
+
 import firebase_admin
 from firebase_admin import credentials
 from firebase_admin import db as firebase_db
-from typing import Any, Dict
+
 from app.core.config import settings
 from app.core.logger import get_logger
 
@@ -44,7 +46,7 @@ class DatabaseService:
                         )
                     except Exception as e:
                         logger.error(f"Failed to parse FIREBASE_CREDENTIALS_JSON: {e}")
-                        raise e
+                        raise
                 else:
                     logger.info(
                         f"Initializing Firebase using key path: {settings.FIREBASE_CREDENTIALS_PATH}"
@@ -77,7 +79,7 @@ class DatabaseService:
         ref = await self.get_ref(path)
         await asyncio.to_thread(ref.set, data)
 
-    async def update_data(self, path: str, data: Dict[str, Any]) -> None:
+    async def update_data(self, path: str, data: dict[str, Any]) -> None:
         """Update fields at a path asynchronously."""
         ref = await self.get_ref(path)
         await asyncio.to_thread(ref.update, data)

@@ -1,4 +1,5 @@
 import sys
+
 from app.core.config import settings
 from app.core.container import Container
 from app.core.logger import get_logger
@@ -33,6 +34,6 @@ def main():
     logger.info("Connecting to Discord...")
     try:
         bot.run(settings.DISCORD_BOT_TOKEN)
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         logger.critical(f"Error running Discord bot: {e}")
         sys.exit(1)

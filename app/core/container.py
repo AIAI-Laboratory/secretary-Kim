@@ -1,20 +1,21 @@
 from dependency_injector import containers, providers
-from app.services.music import MusicService
-from app.services.event import EventService
-from app.services.task import TaskService
-from app.services.database import DatabaseService
-from app.services.gacha import GachaService
-from app.services.pomodoro import PomodoroService
-from app.agent.registry import SkillRegistry
+
 from app.agent.context import ContextEngine
-from app.agent.skills.music_skill import MusicSkill
+from app.agent.core import KimAgent
+from app.agent.registry import SkillRegistry
+from app.agent.skills.attendance_skill import AttendanceSkill
 from app.agent.skills.event_skill import EventSkill
 from app.agent.skills.gacha_skill import GachaSkill
-from app.agent.core import KimAgent
+from app.agent.skills.music_skill import MusicSkill
 from app.presentation.discord_bot import MusicBot
-from app.services.pixellab import PixelLabService
 from app.services.attendance import AttendanceService
-from app.agent.skills.attendance_skill import AttendanceSkill
+from app.services.database import DatabaseService
+from app.services.event import EventService
+from app.services.gacha import GachaService
+from app.services.music import MusicService
+from app.services.pixellab import PixelLabService
+from app.services.pomodoro import PomodoroService
+from app.services.task import TaskService
 
 
 class Container(containers.DeclarativeContainer):

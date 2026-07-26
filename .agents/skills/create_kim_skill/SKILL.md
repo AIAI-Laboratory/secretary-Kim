@@ -23,6 +23,7 @@ from google.genai import types
 from app.agent.skills.base import BaseSkill
 from app.agent.models import SkillContext, SkillResult
 
+
 class NewFeatureSkill(BaseSkill):
     def __init__(self, business_service: Any):
         # Inject the underlying service that handles raw business logic
@@ -46,33 +47,33 @@ class NewFeatureSkill(BaseSkill):
                     "properties": {
                         "param_name": {
                             "type": "STRING",
-                            "description": "Clarifying instructions for the model on how to extract this value."
+                            "description": "Clarifying instructions for the model on how to extract this value.",
                         }
                     },
-                    "required": ["param_name"]
-                }
+                    "required": ["param_name"],
+                },
             )
         ]
 
-    async def execute(self, function_name: str, args: Dict[str, Any], context: SkillContext) -> SkillResult:
+    async def execute(
+        self, function_name: str, args: Dict[str, Any], context: SkillContext
+    ) -> SkillResult:
         if function_name == "execute_action":
             param = args.get("param_name")
             try:
                 # Call business logic service
                 result = await self.service.run(param)
                 return SkillResult(
-                    success=True,
-                    message=f"Successfully executed: {result}"
+                    success=True, message=f"Successfully executed: {result}"
                 )
             except Exception as e:
                 return SkillResult(
-                    success=False,
-                    message=f"Error executing action: {str(e)}"
+                    success=False, message=f"Error executing action: {str(e)}"
                 )
 
         return SkillResult(
             success=False,
-            message=f"Action '{function_name}' not supported by NewFeatureSkill."
+            message=f"Action '{function_name}' not supported by NewFeatureSkill.",
         )
 ```
 

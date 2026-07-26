@@ -1,4 +1,5 @@
-from typing import Any, Dict, List, Optional
+from typing import Any
+
 from app.core.logger import get_logger
 
 logger = get_logger(__name__)
@@ -13,17 +14,17 @@ class TaskService:
 
     def __init__(self):
         # In-memory storage mock (replace with database models later)
-        self._tasks: List[Dict[str, Any]] = []
+        self._tasks: list[dict[str, Any]] = []
         self._next_id: int = 1
 
     async def create_task(
         self,
         title: str,
-        description: Optional[str] = None,
-        assignee_id: Optional[str] = None,
-        assignee_name: Optional[str] = None,
-        due_date: Optional[str] = None,
-    ) -> Dict[str, Any]:
+        description: str | None = None,
+        assignee_id: str | None = None,
+        assignee_name: str | None = None,
+        due_date: str | None = None,
+    ) -> dict[str, Any]:
         """
         Creates a new task.
         """
@@ -43,9 +44,7 @@ class TaskService:
         )
         return task
 
-    async def get_tasks(
-        self, assignee_id: Optional[str] = None
-    ) -> List[Dict[str, Any]]:
+    async def get_tasks(self, assignee_id: str | None = None) -> list[dict[str, Any]]:
         """
         Retrieves all tasks or tasks assigned to a specific user.
         """
@@ -55,7 +54,7 @@ class TaskService:
 
     async def update_task_status(
         self, task_id: int, status: str
-    ) -> Optional[Dict[str, Any]]:
+    ) -> dict[str, Any] | None:
         """
         Updates the status of a task (e.g. pending, in_progress, completed).
         """

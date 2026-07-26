@@ -1,6 +1,7 @@
-import yt_dlp
 import asyncio
-from urllib.parse import urlparse, parse_qs, urlencode, urlunparse
+from urllib.parse import parse_qs, urlencode, urlparse, urlunparse
+
+import yt_dlp
 
 
 def clean_youtube_url(url: str) -> str:
@@ -16,7 +17,7 @@ def clean_youtube_url(url: str) -> str:
         # Short link style youtu.be/...
         elif "youtu.be" in parsed.netloc:
             return urlunparse(parsed._replace(query=""))
-    except Exception:
+    except (ValueError, AttributeError):
         pass
     return url
 
@@ -53,7 +54,7 @@ class MusicService:
                 if "entries" in info:
                     # If it is a search result, take the first entry
                     if not info["entries"]:
-                        raise Exception("No matching search result found.")
+                        raise ValueError("No matching search result found.")
                     info = info["entries"][0]
                 return info
 

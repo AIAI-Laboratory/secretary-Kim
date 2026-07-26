@@ -1,10 +1,12 @@
+from typing import Any
+
 import discord
-from typing import Any, Dict, List
 from google.genai import types
-from app.agent.skills.base import BaseSkill
+
 from app.agent.models import SkillContext, SkillResult
-from app.services.music import MusicService
+from app.agent.skills.base import BaseSkill
 from app.core.logger import get_logger
+from app.services.music import MusicService
 
 logger = get_logger(__name__)
 
@@ -25,7 +27,7 @@ class MusicSkill(BaseSkill):
     def description(self) -> str:
         return "Controls music: plays music from YouTube, pauses, resumes, skips tracks, and leaves the voice channel."
 
-    def get_function_declarations(self) -> List[types.FunctionDeclaration]:
+    def get_function_declarations(self) -> list[types.FunctionDeclaration]:
         return [
             types.FunctionDeclaration(
                 name="play_music",
@@ -59,7 +61,7 @@ class MusicSkill(BaseSkill):
         ]
 
     async def execute(
-        self, function_name: str, args: Dict[str, Any], context: SkillContext
+        self, function_name: str, args: dict[str, Any], context: SkillContext
     ) -> SkillResult:
         # Get discord interaction and bot client
         interaction = context.discord_interaction
@@ -104,28 +106,27 @@ class MusicSkill(BaseSkill):
             if not voice_client:
                 try:
                     voice_client = await user_channel.connect()
-                except Exception as e:
+                except Exception as e:  # noqa: BLE001
                     logger.error(f"Cannot connect to voice channel: {e}")
                     return SkillResult(
                         success=False,
                         message=f"❌ Cannot connect to voice channel: {e}",
                     )
-            elif voice_client.channel != user_channel:
-                # Move bot if bot is idle
-                if (
-                    not voice_client.is_playing()
-                    and not voice_client.is_paused()
-                    and manager.current is None
-                ):
-                    try:
-                        await voice_client.move_to(user_channel)
-                    except Exception as e:
-                        logger.warning(f"Cannot move voice channel: {e}")
+            elif (
+                voice_client.channel != user_channel
+                and not voice_client.is_playing()
+                and not voice_client.is_paused()
+                and manager.current is None
+            ):
+                try:
+                    await voice_client.move_to(user_channel)
+                except Exception as e:  # noqa: BLE001
+                    logger.warning(f"Cannot move voice channel: {e}")
 
             # Extract song info from YouTube (runs async via service)
             try:
                 info = await self.music_service.extract_info(query)
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001
                 logger.error(f"Error extracting video: {e}")
                 return SkillResult(
                     success=False,

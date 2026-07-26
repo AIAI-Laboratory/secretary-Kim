@@ -1,13 +1,13 @@
-from app.services.music import MusicService
-from app.services.event import EventService
-from app.services.task import TaskService
-from app.services.pixellab import PixelLabService
 from app.services.attendance import AttendanceService
+from app.services.event import EventService
+from app.services.music import MusicService
+from app.services.pixellab import PixelLabService
+from app.services.task import TaskService
 
 __all__ = [
-    "MusicService",
-    "EventService",
-    "TaskService",
-    "PixelLabService",
     "AttendanceService",
+    "EventService",
+    "MusicService",
+    "PixelLabService",
+    "TaskService",
 ]

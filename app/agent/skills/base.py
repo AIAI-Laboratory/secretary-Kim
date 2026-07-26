@@ -1,5 +1,6 @@
 from abc import ABC, abstractmethod
-from typing import Any, Dict, List
+from typing import Any
+
 from google.genai import types
 
 
@@ -15,7 +16,6 @@ class BaseSkill(ABC):
         """
         Unique identifier name of the skill (e.g., 'music', 'event', 'weather').
         """
-        pass
 
     @property
     @abstractmethod
@@ -24,19 +24,17 @@ class BaseSkill(ABC):
         Brief description of the skill's functionality. The LLM can use this description
         to understand the general capability of the skill.
         """
-        pass
 
     @abstractmethod
-    def get_function_declarations(self) -> List[types.FunctionDeclaration]:
+    def get_function_declarations(self) -> list[types.FunctionDeclaration]:
         """
         Return the list of tool/function declarations provided by this skill.
         These declarations will be sent to Gemini to perform Function Calling.
         """
-        pass
 
     @abstractmethod
     async def execute(
-        self, function_name: str, args: Dict[str, Any], context: Any
+        self, function_name: str, args: dict[str, Any], context: Any
     ) -> Any:
         """
         Execute the function requested by the LLM.
@@ -46,4 +44,3 @@ class BaseSkill(ABC):
             args: The arguments passed into the function as a dict.
             context: The object containing execution context information (Discord guild, user, channel, etc.).
         """
-        pass
