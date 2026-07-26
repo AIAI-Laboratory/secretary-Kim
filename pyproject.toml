@@ -7,7 +7,7 @@ requires-python = ">=3.13"
 dependencies = [
     "dependency-injector>=4.49.1",
     "discord-py>=2.7.1",
-    "google-genai>=2.12.1",
+    "google-genai>=2.14.0",
     "httpx>=0.28.1",
     "pydantic-settings>=2.14.2",
     "python-dotenv>=1.2.2",
@@ -18,8 +18,8 @@ dependencies = [
     "aiosqlite>=0.22.1",
     "firebase-admin>=6.5.0",
     "pyxelate",
-    "ruff>=0.15.22",
-    "pre-commit>=3.5.0",
+    "ruff>=0.16.0",
+    "pre-commit>=4.6.1",
 ]
 
 [tool.uv.sources]
