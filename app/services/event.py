@@ -1,6 +1,7 @@
 import datetime
-from typing import Optional
+
 import discord
+
 from app.core.logger import get_logger
 
 logger = get_logger(__name__)
@@ -17,10 +18,10 @@ class EventService:
         guild: discord.Guild,
         name: str,
         start_time: datetime.datetime,
-        end_time: Optional[datetime.datetime] = None,
-        description: Optional[str] = None,
-        location: Optional[str] = None,
-        channel_id: Optional[str] = None,
+        end_time: datetime.datetime | None = None,
+        description: str | None = None,
+        location: str | None = None,
+        channel_id: str | None = None,
     ) -> discord.ScheduledEvent:
         """
         Creates a scheduled event in the Discord Guild.
@@ -31,7 +32,7 @@ class EventService:
             start_time = start_time.replace(tzinfo=tz)
 
         # Discord requires the start time of the event to be in the future
-        now = datetime.datetime.now(datetime.timezone.utc)
+        now = datetime.datetime.now(datetime.UTC)
         if start_time < now:
             start_time = now + datetime.timedelta(minutes=5)
             logger.info(
@@ -53,7 +54,7 @@ class EventService:
         if channel_id:
             try:
                 voice_channel = guild.get_channel(int(channel_id))
-            except Exception as e:
+            except (ValueError, TypeError) as e:
                 logger.warning(
                     f"Could not retrieve voice channel with ID {channel_id}: {e}"
                 )

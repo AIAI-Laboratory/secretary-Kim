@@ -1,13 +1,15 @@
 import io
+from typing import Any
+
 import discord
-from typing import Any, Dict, List
 from google.genai import types
-from app.agent.skills.base import BaseSkill
+
 from app.agent.models import SkillContext, SkillResult
-from app.services.gacha import GachaService, RARITY_STYLING, format_types
-from app.services.pomodoro import PomodoroService
+from app.agent.skills.base import BaseSkill
 from app.core.config import settings
 from app.core.logger import get_logger
+from app.services.gacha import RARITY_STYLING, GachaService, format_types
+from app.services.pomodoro import PomodoroService
 
 logger = get_logger(__name__)
 
@@ -32,7 +34,7 @@ class GachaSkill(BaseSkill):
             "and active Pokemon selection and Pomodoro focus sessions to earn currency (FP and Fruits)."
         )
 
-    def get_function_declarations(self) -> List[types.FunctionDeclaration]:
+    def get_function_declarations(self) -> list[types.FunctionDeclaration]:
         return [
             types.FunctionDeclaration(
                 name="start_pomodoro",
@@ -78,7 +80,7 @@ class GachaSkill(BaseSkill):
         ]
 
     async def execute(
-        self, function_name: str, args: Dict[str, Any], context: SkillContext
+        self, function_name: str, args: dict[str, Any], context: SkillContext
     ) -> SkillResult:
         client = (
             context.discord_interaction.client if context.discord_interaction else None
@@ -170,7 +172,7 @@ class GachaSkill(BaseSkill):
                 (
                     pet_id,
                     pet_dict,
-                    hd_bytes,
+                    _hd_bytes,
                     pixel_bytes,
                 ) = await self.gacha_service.roll_gacha(
                     context.user_id, pre_rolled_attrs=attrs
@@ -232,7 +234,7 @@ class GachaSkill(BaseSkill):
                 )
 
             except Exception as e:
-                logger.error(f"Gacha skill execution failed: {e}", exc_info=True)
+                logger.exception("Gacha skill execution failed")
                 if "PixelLabError" in type(e).__name__ or "timeout" in str(e).lower():
                     err_msg = "❌ Cửa hàng triệu hồi thú cưng đang tạm thời đóng cửa do họa sĩ vẽ pet bị ngất xỉu (API Timeout/Error). Vui lòng thử lại sau nhé! 😴"
                 else:
@@ -348,10 +350,9 @@ class GachaSkill(BaseSkill):
                             evolution_msg_obj = await interaction.followup.send(
                                 content=f"✨ {msg}\n\n{pet_before['name']} is evolving to Stage {new_stage}! Designing new form..."
                             )
-                    except Exception as e:
-                        logger.error(
-                            f"Failed to send evolution charging status in skill: {e}",
-                            exc_info=True,
+                    except Exception:
+                        logger.exception(
+                            "Failed to send evolution charging status in skill"
                         )
                         evolution_msg_obj = await interaction.followup.send(
                             content=f"✨ {msg}\n\n{pet_before['name']} is evolving to Stage {new_stage}! Designing new form..."
@@ -390,10 +391,9 @@ class GachaSkill(BaseSkill):
                                 final_gif_bytes = await self.gacha_service.generate_complete_evolution_gif(
                                     current_img_url, pixel_bytes, updated_pet["id"]
                                 )
-                            except Exception as ge:
-                                logger.error(
-                                    f"Failed to generate complete evolution GIF in skill: {ge}",
-                                    exc_info=True,
+                            except Exception:
+                                logger.exception(
+                                    "Failed to generate complete evolution GIF in skill"
                                 )
 
                         # Upload static pixel PNG to Discord Image channel
@@ -468,10 +468,7 @@ class GachaSkill(BaseSkill):
                             await interaction.followup.send(embed=embed_final)
 
                     except Exception as e:
-                        logger.error(
-                            f"Image generation/evolution failed in skill: {e}",
-                            exc_info=True,
-                        )
+                        logger.exception("Image generation/evolution failed in skill")
                         err_msg = (
                             f"\n⚠️ Image generation failed for this evolution stage: {e}"
                         )
@@ -481,11 +478,8 @@ class GachaSkill(BaseSkill):
                             await self.gacha_service.rollback_pet_stage(
                                 context.user_id, updated_pet["id"], pet_before["stage"]
                             )
-                        except Exception as re:
-                            logger.error(
-                                f"Failed to rollback pet stage in skill: {re}",
-                                exc_info=True,
-                            )
+                        except Exception:
+                            logger.exception("Failed to rollback pet stage in skill")
 
                         if evolution_msg_obj:
                             embed_err = discord.Embed(
@@ -552,10 +546,7 @@ class GachaSkill(BaseSkill):
                             context.user_id
                         )
                     except Exception as e:
-                        logger.error(
-                            f"Fallback evolution image generation failed: {e}",
-                            exc_info=True,
-                        )
+                        logger.exception("Fallback evolution image generation failed")
                         msg += f"\n⚠️ Image generation failed for evolution: {e}"
 
             stage_name = (

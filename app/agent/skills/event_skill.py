@@ -1,9 +1,11 @@
-from typing import Any, Dict, List
+from typing import Any
+
 from google.genai import types
-from app.agent.skills.base import BaseSkill
+
 from app.agent.models import SkillContext, SkillResult
-from app.services.event import EventService
+from app.agent.skills.base import BaseSkill
 from app.domain.models.event import ProposedAction
+from app.services.event import EventService
 
 
 class EventSkill(BaseSkill):
@@ -22,7 +24,7 @@ class EventSkill(BaseSkill):
     def description(self) -> str:
         return "Creates and schedules events (Scheduled Event), meetings, and tasks on Discord."
 
-    def get_function_declarations(self) -> List[types.FunctionDeclaration]:
+    def get_function_declarations(self) -> list[types.FunctionDeclaration]:
         return [
             types.FunctionDeclaration(
                 name="propose_event",
@@ -69,7 +71,7 @@ class EventSkill(BaseSkill):
         ]
 
     async def execute(
-        self, function_name: str, args: Dict[str, Any], context: SkillContext
+        self, function_name: str, args: dict[str, Any], context: SkillContext
     ) -> SkillResult:
         if function_name == "propose_event":
             # Build ProposedAction model from args received from Gemini

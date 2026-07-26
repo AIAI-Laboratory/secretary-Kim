@@ -1,10 +1,12 @@
-import discord
-from discord.ext import commands
-from discord import app_commands
 import datetime
-from app.domain.models.event import ProposedAction
+
+import discord
+from discord import app_commands
+from discord.ext import commands
+
 from app.agent.models import AgentRequest
 from app.core.logger import get_logger
+from app.domain.models.event import ProposedAction
 
 logger = get_logger(__name__)
 
@@ -43,7 +45,7 @@ def create_proposed_embed(
             dt = datetime.datetime.fromisoformat(action.scheduled_start_time)
             timestamp = int(dt.timestamp())
             start_str = f"<t:{timestamp}:F> (<t:{timestamp}:R>)"
-        except Exception:
+        except (ValueError, TypeError):
             start_str = action.scheduled_start_time
 
     embed.add_field(name="⏰ Start Time", value=start_str, inline=True)
@@ -239,8 +241,8 @@ class ProposedActionView(discord.ui.View):
                     end_time = datetime.datetime.fromisoformat(
                         self.action.scheduled_end_time
                     )
-                except Exception:
-                    pass
+                except (ValueError, TypeError) as e:
+                    logger.debug("Failed to parse scheduled_end_time ISO format: %s", e)
 
             # Call EventService from the business layer to create the event
             event = await self.bot.event_service.create_event(
@@ -308,7 +310,7 @@ class ProposedActionView(discord.ui.View):
                 ephemeral=True,
             )
         except Exception as e:
-            logger.error(f"Error approving event creation: {e}", exc_info=True)
+            logger.exception("Error approving event creation")
             await interaction.followup.send(
                 f"❌ An error occurred while creating the event: {e}", ephemeral=True
             )
@@ -587,10 +589,8 @@ class EventCog(commands.Cog):
             if send_args:
                 await interaction.followup.send(**send_args)
 
-        except Exception as e:
-            logger.error(
-                f"System error when processing /kim command: {e}", exc_info=True
-            )
+        except Exception:
+            logger.exception("System error when processing /kim command")
             await interaction.followup.send(
                 "❌ The system encountered an error while processing the request. Please try again later.",
                 ephemeral=True,

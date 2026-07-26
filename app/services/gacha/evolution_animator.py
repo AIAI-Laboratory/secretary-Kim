@@ -1,9 +1,10 @@
 import io
 import math
 import random
-from typing import List
+
 import httpx
 from PIL import Image, ImageDraw
+
 from app.core.logger import get_logger
 
 logger = get_logger(__name__)
@@ -25,7 +26,7 @@ def create_silhouette(img: Image.Image, color=(255, 255, 255, 255)) -> Image.Ima
     return silhouette
 
 
-def get_octagon_points(cx: int, cy: int, r: int) -> List[tuple]:
+def get_octagon_points(cx: int, cy: int, r: int) -> list[tuple]:
     """Calculate the 8 vertices of a regular octagon given a center and radius."""
     r_diag = int(r * 0.7071)
     return [

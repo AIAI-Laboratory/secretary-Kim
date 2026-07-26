@@ -1,8 +1,10 @@
-from typing import Any, Dict, List
+from typing import Any
+
 import discord
 from google.genai import types
-from app.agent.skills.base import BaseSkill
+
 from app.agent.models import SkillContext, SkillResult
+from app.agent.skills.base import BaseSkill
 from app.services.attendance import AttendanceService
 
 
@@ -22,7 +24,7 @@ class AttendanceSkill(BaseSkill):
     def description(self) -> str:
         return "Checks attendance coin balance and displays the voice room attendance leaderboard."
 
-    def get_function_declarations(self) -> List[types.FunctionDeclaration]:
+    def get_function_declarations(self) -> list[types.FunctionDeclaration]:
         return [
             types.FunctionDeclaration(
                 name="check_my_attendance_coins",
@@ -48,7 +50,7 @@ class AttendanceSkill(BaseSkill):
         ]
 
     async def execute(
-        self, function_name: str, args: Dict[str, Any], context: SkillContext
+        self, function_name: str, args: dict[str, Any], context: SkillContext
     ) -> SkillResult:
         if function_name == "check_my_attendance_coins":
             user_id = context.user_id

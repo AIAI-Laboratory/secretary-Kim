@@ -1,5 +1,9 @@
 import datetime
+
 from app.agent.models import AgentRequest, SkillContext
+from app.core.logger import get_logger
+
+logger = get_logger(__name__)
 
 
 class ContextEngine:
@@ -38,19 +42,20 @@ class ContextEngine:
         if guild:
             # Gather voice channel list
             try:
-                for channel in guild.voice_channels:
-                    voice_channels[str(channel.id)] = channel.name
-            except Exception:
-                pass
+                if hasattr(guild, "voice_channels") and guild.voice_channels:
+                    for channel in guild.voice_channels:
+                        voice_channels[str(channel.id)] = channel.name
+            except (AttributeError, TypeError) as e:
+                logger.debug("Failed to gather voice channels context: %s", e)
 
             # Gather user list (limited by cache or fetch depending on bot design)
             try:
-                # In practice, members can be fetched via API or using guild.members cache
-                for member in guild.members:
-                    if not member.bot:
-                        server_members[str(member.id)] = member.display_name
-            except Exception:
-                pass
+                if hasattr(guild, "members") and guild.members:
+                    for member in guild.members:
+                        if not member.bot:
+                            server_members[str(member.id)] = member.display_name
+            except (AttributeError, TypeError) as e:
+                logger.debug("Failed to gather server members context: %s", e)
 
         return SkillContext(
             guild_id=request.guild_id,

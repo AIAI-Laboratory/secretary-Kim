@@ -1,10 +1,11 @@
 from google import genai
 from google.genai import types
-from app.core.config import settings
-from app.core.logger import get_logger
-from app.agent.registry import SkillRegistry
+
 from app.agent.context import ContextEngine
 from app.agent.models import AgentRequest, AgentResponse
+from app.agent.registry import SkillRegistry
+from app.core.config import settings
+from app.core.logger import get_logger
 
 logger = get_logger(__name__)
 
@@ -101,11 +102,8 @@ class KimAgent:
                 skill_used="chitchat",
             )
 
-        except Exception as e:
-            logger.error(
-                f"System error when Agent Core processed the request: {e}",
-                exc_info=True,
-            )
+        except Exception:
+            logger.exception("System error when Agent Core processed the request")
             return AgentResponse(
                 content="❌ Secretary Kim encountered a technical error while processing this request."
             )

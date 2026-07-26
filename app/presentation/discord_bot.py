@@ -1,13 +1,15 @@
-import discord
-from discord.ext import commands
-from discord import app_commands
 import asyncio
 from typing import Any
-from app.services.music import MusicService
-from app.services.event import EventService
-from app.services.task import TaskService
+
+import discord
+from discord import app_commands
+from discord.ext import commands
+
 from app.agent.core import KimAgent
 from app.core.logger import get_logger
+from app.services.event import EventService
+from app.services.music import MusicService
+from app.services.task import TaskService
 
 logger = get_logger(__name__)
 
@@ -80,7 +82,7 @@ class GuildMusicManager:
             try:
                 info = await self.bot.music_service.extract_info(track["webpage_url"])
                 stream_url = info["url"]
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001
                 logger.warning(f"Could not refresh stream URL, using original URL: {e}")
                 stream_url = track["url"]
 
@@ -123,7 +125,7 @@ class GuildMusicManager:
             if self.text_channel:
                 await self.text_channel.send(embed=embed)
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             logger.error(f"Error starting music playback: {e}")
             if self.text_channel:
                 await self.text_channel.send(
@@ -162,7 +164,7 @@ class MusicCog(commands.Cog):
         if not voice_client:
             try:
                 voice_client = await user_channel.connect()
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001
                 logger.error(f"Cannot connect to voice channel: {e}")
                 embed = discord.Embed(
                     description=f"❌ Cannot connect to voice channel: {e}",
@@ -180,13 +182,13 @@ class MusicCog(commands.Cog):
             ):
                 try:
                     await voice_client.move_to(user_channel)
-                except Exception as e:
+                except Exception as e:  # noqa: BLE001
                     logger.warning(f"Cannot move voice channel: {e}")
 
         # Search for or extract song info
         try:
             info = await self.bot.music_service.extract_info(query)
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             logger.error(f"Error extracting video: {e}")
             embed = discord.Embed(
                 description=f"❌ No matching results found or an error occurred: {e}",
@@ -467,7 +469,7 @@ class MusicCog(commands.Cog):
                         color=0x5865F2,
                     )
                     await manager.text_channel.send(embed=embed)
-                except Exception as e:
+                except Exception as e:  # noqa: BLE001
                     logger.warning(f"Could not send auto-leave notification: {e}")
 
 
@@ -492,7 +494,7 @@ class MusicBot(commands.Bot):
         intents.members = True  # Ensure members intent is active for member lookups
         intents.message_content = True  # Ensure message content intent is active
 
-        super().__init__(command_prefix="!", intents=intents, *args, **kwargs)
+        super().__init__(*args, command_prefix="!", intents=intents, **kwargs)
         self.kim_agent = kim_agent
         self.music_service = music_service
         self.event_service = event_service
@@ -540,10 +542,8 @@ class MusicBot(commands.Bot):
         if self.attendance_service:
             try:
                 await self.attendance_service.update_leaderboard_channel(self)
-            except Exception as e:
-                logger.error(
-                    f"Error doing initial leaderboard render: {e}", exc_info=True
-                )
+            except Exception:
+                logger.exception("Error doing initial leaderboard render")
 
         while not self.is_closed():
             try:
@@ -552,5 +552,5 @@ class MusicBot(commands.Bot):
                     await self.attendance_service.track_voice_presence(self)
             except asyncio.CancelledError:
                 break
-            except Exception as e:
-                logger.error(f"Error in voice tracking loop: {e}", exc_info=True)
+            except Exception:
+                logger.exception("Error in voice tracking loop")
