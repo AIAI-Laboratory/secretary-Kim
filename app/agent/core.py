@@ -1,3 +1,5 @@
+"""Central AI Agent orchestrator for Secretary Kim."""
+
 from google import genai
 from google.genai import types
 
@@ -11,12 +13,18 @@ logger = get_logger(__name__)
 
 
 class KimAgent:
-    """
-    Central brain of Secretary Kim.
+    """Central brain of Secretary Kim.
+
     Orchestrates natural language requests using Gemini Function Calling.
     """
 
     def __init__(self, skill_registry: SkillRegistry, context_engine: ContextEngine):
+        """Initialize the agent with skill registry and context engine.
+
+        Args:
+            skill_registry (SkillRegistry): Registry containing all active skills.
+            context_engine (ContextEngine): Context engine for building prompt states.
+        """
         self.registry = skill_registry
         self.context_engine = context_engine
 
@@ -26,12 +34,19 @@ class KimAgent:
         self.client = genai.Client(api_key=settings.GEMINI_API_KEY or None)
 
     async def process(self, request: AgentRequest) -> AgentResponse:
-        """
-        Process request from user:
-        1. Build business Context
-        2. Gather all Function Declarations from Registry
-        3. Call Gemini API
-        4. Dispatch function call to corresponding Skill or return chitchat text
+        """Process an inbound natural language request from a user.
+
+        Workflow:
+            1. Build business context.
+            2. Gather all Function Declarations from the skill registry.
+            3. Call the Gemini API.
+            4. Dispatch function calls to the corresponding skill or return chitchat text.
+
+        Args:
+            request (AgentRequest): Inbound request from presentation layer.
+
+        Returns:
+            AgentResponse: Response to display back to the user.
         """
         # 1. Create specific business context for Skill
         skill_context = await self.context_engine.build_skill_context(request)

@@ -1,3 +1,5 @@
+"""Registry and dispatcher for AI Agent skills."""
+
 from typing import Any
 
 from google.genai import types
@@ -7,17 +9,24 @@ from app.agent.skills.base import BaseSkill
 
 
 class SkillRegistry:
-    """
-    Registry managing the list of Agent skills.
-    Allows registering new skills, retrieving the list of tool declarations for LLM, and dispatching requests to the appropriate skill.
+    """Registry managing the list of Agent skills.
+
+    Allows registering new skills, retrieving the list of tool declarations for LLM,
+    and dispatching requests to the appropriate skill.
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
+        """Initialize an empty skill registry."""
         self._skills: dict[str, BaseSkill] = {}
 
     def register(self, skill: BaseSkill) -> None:
-        """
-        Register a skill into the system.
+        """Register a skill into the system.
+
+        Args:
+            skill (BaseSkill): Skill instance to register.
+
+        Raises:
+            ValueError: If a skill with the same name is already registered.
         """
         if skill.name in self._skills:
             raise ValueError(
@@ -26,8 +35,10 @@ class SkillRegistry:
         self._skills[skill.name] = skill
 
     def get_all_function_declarations(self) -> list[types.FunctionDeclaration]:
-        """
-        Collect and return the list of FunctionDeclaration from all registered skills.
+        """Collect and return the list of FunctionDeclaration from all registered skills.
+
+        Returns:
+            list[types.FunctionDeclaration]: All declarations for Gemini function calling.
         """
         declarations = []
         for skill in self._skills.values():
@@ -35,8 +46,10 @@ class SkillRegistry:
         return declarations
 
     def get_skill_descriptions(self) -> str:
-        """
-        Return a description string of available skills to append to the Agent's system prompt.
+        """Return a description string of available skills to append to the Agent's system prompt.
+
+        Returns:
+            str: Multi-line string describing each skill's capabilities.
         """
         descriptions = []
         for skill in self._skills.values():
@@ -46,8 +59,15 @@ class SkillRegistry:
     async def dispatch(
         self, function_name: str, args: dict[str, Any], context: SkillContext
     ) -> SkillResult:
-        """
-        Search for which skill owns function_name and forward the execution to that skill.
+        """Search for which skill owns function_name and forward execution to that skill.
+
+        Args:
+            function_name (str): The name of the function to execute.
+            args (dict[str, Any]): The arguments parsed by LLM.
+            context (SkillContext): Context object containing runtime info.
+
+        Returns:
+            SkillResult: The execution result from the handling skill.
         """
         for skill in self._skills.values():
             # Check if function_name matches any declaration of the skill

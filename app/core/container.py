@@ -1,3 +1,5 @@
+"""Dependency injection container configuration for Secretary Kim."""
+
 from dependency_injector import containers, providers
 
 from app.agent.context import ContextEngine
@@ -19,6 +21,8 @@ from app.services.task import TaskService
 
 
 class Container(containers.DeclarativeContainer):
+    """Inversion of control container wiring all application dependencies."""
+
     wiring_config = containers.WiringConfiguration(modules=["app.main"])
 
     # Core business services

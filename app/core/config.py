@@ -1,8 +1,12 @@
+"""Application configuration management using Pydantic Settings."""
+
 from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
+    """Application settings loaded from environment variables and .env file."""
+
     model_config = SettingsConfigDict(
         env_file=".env", env_file_encoding="utf-8", extra="ignore"
     )
@@ -31,10 +35,18 @@ class Settings(BaseSettings):
         mode="before",
     )
     @classmethod
-    def empty_str_to_zero(cls, v):
+    def empty_str_to_zero(cls, v: str | int) -> int:
+        """Convert empty string configuration values to zero integer.
+
+        Args:
+            v (str | int): Raw channel ID value before validation.
+
+        Returns:
+            int: Converted integer or original value.
+        """
         if v == "":
             return 0
-        return v
+        return int(v) if isinstance(v, str) else v
 
 
 settings = Settings()

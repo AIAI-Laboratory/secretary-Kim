@@ -1,3 +1,5 @@
+"""Constants, rarity mappings, and aesthetic concepts for Pokemon Gacha."""
+
 TYPES = [
     "Fire",
     "Water",

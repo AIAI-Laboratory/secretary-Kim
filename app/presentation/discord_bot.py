@@ -1,3 +1,5 @@
+"""Discord presentation layer and music bot controller."""
+
 import asyncio
 from typing import Any
 
@@ -28,7 +30,13 @@ def format_duration(seconds: int) -> str:
 class GuildMusicManager:
     """Manage queue and play music for each distinct Guild (Server)."""
 
-    def __init__(self, bot, guild_id: int):
+    def __init__(self, bot: Any, guild_id: int) -> None:
+        """Initialize GuildMusicManager with bot instance and guild ID.
+
+        Args:
+            bot (Any): Parent bot client instance.
+            guild_id (int): Discord server ID.
+        """
         self.bot = bot
         self.guild_id = guild_id
         self.queue = []  # Queue containing song info
@@ -138,7 +146,12 @@ class GuildMusicManager:
 class MusicCog(commands.Cog):
     """Cog containing music control commands."""
 
-    def __init__(self, bot):
+    def __init__(self, bot: Any) -> None:
+        """Initialize MusicCog with parent bot client.
+
+        Args:
+            bot (Any): Bot instance.
+        """
         self.bot = bot
 
     @app_commands.command(
@@ -146,7 +159,13 @@ class MusicCog(commands.Cog):
         description="Play music from YouTube (enter link or search keywords)",
     )
     @app_commands.describe(query="YouTube video link or search keywords")
-    async def play(self, interaction: discord.Interaction, query: str):
+    async def play(self, interaction: discord.Interaction, query: str) -> None:
+        """Play requested music track or add it to queue.
+
+        Args:
+            interaction (discord.Interaction): Discord interaction context.
+            query (str): Video URL or keywords.
+        """
         # Check if the user is in a voice channel
         if not interaction.user.voice or not interaction.user.voice.channel:
             embed = discord.Embed(
@@ -238,7 +257,12 @@ class MusicCog(commands.Cog):
             await interaction.followup.send(embed=embed)
 
     @app_commands.command(name="pause", description="Pause the currently playing song")
-    async def pause(self, interaction: discord.Interaction):
+    async def pause(self, interaction: discord.Interaction) -> None:
+        """Pause the current playback.
+
+        Args:
+            interaction (discord.Interaction): Discord interaction context.
+        """
         voice_client = interaction.guild.voice_client
         if not voice_client or not voice_client.is_playing():
             embed = discord.Embed(
@@ -252,7 +276,12 @@ class MusicCog(commands.Cog):
         await interaction.response.send_message(embed=embed)
 
     @app_commands.command(name="resume", description="Resume the currently paused song")
-    async def resume(self, interaction: discord.Interaction):
+    async def resume(self, interaction: discord.Interaction) -> None:
+        """Resume playback of the paused track.
+
+        Args:
+            interaction (discord.Interaction): Discord interaction context.
+        """
         voice_client = interaction.guild.voice_client
         if not voice_client or not voice_client.is_paused():
             embed = discord.Embed(
@@ -266,7 +295,12 @@ class MusicCog(commands.Cog):
         await interaction.response.send_message(embed=embed)
 
     @app_commands.command(name="skip", description="Skip the current song")
-    async def skip(self, interaction: discord.Interaction):
+    async def skip(self, interaction: discord.Interaction) -> None:
+        """Skip the current track and play next in queue.
+
+        Args:
+            interaction (discord.Interaction): Discord interaction context.
+        """
         voice_client = interaction.guild.voice_client
         if not voice_client or not voice_client.is_playing():
             embed = discord.Embed(
@@ -284,7 +318,12 @@ class MusicCog(commands.Cog):
     @app_commands.command(
         name="stop", description="Stop music playback and clear the queue"
     )
-    async def stop(self, interaction: discord.Interaction):
+    async def stop(self, interaction: discord.Interaction) -> None:
+        """Stop playback and clear all queue tracks.
+
+        Args:
+            interaction (discord.Interaction): Discord interaction context.
+        """
         manager = self.bot.get_manager(interaction.guild_id)
         manager.queue.clear()
         manager.current = None
@@ -300,7 +339,12 @@ class MusicCog(commands.Cog):
         await interaction.response.send_message(embed=embed)
 
     @app_commands.command(name="leave", description="Leave the current voice channel")
-    async def leave(self, interaction: discord.Interaction):
+    async def leave(self, interaction: discord.Interaction) -> None:
+        """Disconnect bot from voice channel.
+
+        Args:
+            interaction (discord.Interaction): Discord interaction context.
+        """
         voice_client = interaction.guild.voice_client
         if not voice_client:
             embed = discord.Embed(
@@ -324,7 +368,12 @@ class MusicCog(commands.Cog):
     @app_commands.command(
         name="loop", description="Toggle loop mode for the current song"
     )
-    async def loop(self, interaction: discord.Interaction):
+    async def loop(self, interaction: discord.Interaction) -> None:
+        """Toggle loop mode on or off.
+
+        Args:
+            interaction (discord.Interaction): Discord interaction context.
+        """
         manager = self.bot.get_manager(interaction.guild_id)
         manager.loop = not manager.loop
         status = "ON" if manager.loop else "OFF"
@@ -335,7 +384,12 @@ class MusicCog(commands.Cog):
         await interaction.response.send_message(embed=embed)
 
     @app_commands.command(name="queue", description="Display the current queue")
-    async def queue(self, interaction: discord.Interaction):
+    async def queue(self, interaction: discord.Interaction) -> None:
+        """Display queued tracks in an embed.
+
+        Args:
+            interaction (discord.Interaction): Discord interaction context.
+        """
         manager = self.bot.get_manager(interaction.guild_id)
 
         if not manager.current and len(manager.queue) == 0:
@@ -377,7 +431,14 @@ class MusicCog(commands.Cog):
         member: discord.Member,
         before: discord.VoiceState,
         after: discord.VoiceState,
-    ):
+    ) -> None:
+        """Handle voice state transitions and automatic disconnection timers.
+
+        Args:
+            member (discord.Member): Discord member whose state changed.
+            before (discord.VoiceState): Previous voice state.
+            after (discord.VoiceState): New voice state.
+        """
         voice_client = member.guild.voice_client
 
         # If bot is no longer in any voice channel or disconnected, cancel the task and clean up the state
@@ -435,7 +496,13 @@ class MusicCog(commands.Cog):
                 manager.disconnect_task.cancel()
                 manager.disconnect_task = None
 
-    async def leave_after_delay(self, guild_id: int, delay: int):
+    async def leave_after_delay(self, guild_id: int, delay: int) -> None:
+        """Disconnect from voice channel after delay if no members remain.
+
+        Args:
+            guild_id (int): Target server ID.
+            delay (int): Seconds to wait before checking and disconnecting.
+        """
         await asyncio.sleep(delay)
         guild = self.bot.get_guild(guild_id)
         if not guild:
@@ -488,7 +555,21 @@ class MusicBot(commands.Bot):
         attendance_service: Any = None,
         *args,
         **kwargs,
-    ):
+    ) -> None:
+        """Initialize the bot with services and required intents.
+
+        Args:
+            kim_agent (KimAgent): Central AI agent client.
+            music_service (MusicService): Service for music streaming.
+            event_service (EventService): Service for scheduled events.
+            task_service (TaskService): Service for task management.
+            db_service (Any): Database persistence service.
+            gacha_service (Any): Pokemon gacha service.
+            pomodoro_service (Any): Pomodoro focus timer service.
+            attendance_service (Any): Optional attendance service. Defaults to None.
+            *args: Variable length argument list.
+            **kwargs: Arbitrary keyword arguments.
+        """
         intents = discord.Intents.default()
         intents.voice_states = True
         intents.members = True  # Ensure members intent is active for member lookups
@@ -506,11 +587,20 @@ class MusicBot(commands.Bot):
         self.managers = {}
 
     def get_manager(self, guild_id: int) -> GuildMusicManager:
+        """Retrieve or create a GuildMusicManager for a given guild.
+
+        Args:
+            guild_id (int): Discord server ID.
+
+        Returns:
+            GuildMusicManager: Manager for server music queue and state.
+        """
         if guild_id not in self.managers:
             self.managers[guild_id] = GuildMusicManager(self, guild_id)
         return self.managers[guild_id]
 
-    async def setup_hook(self):
+    async def setup_hook(self) -> None:
+        """Asynchronous setup hook to initialize database and register Cogs."""
         # Initialize SQLite Database
         await self.db_service.init_db()
 
@@ -528,7 +618,8 @@ class MusicBot(commands.Bot):
         await self.tree.sync()
         logger.info("Slash commands synced successfully.")
 
-    async def on_ready(self):
+    async def on_ready(self) -> None:
+        """Event handler called when the bot has connected and is ready."""
         logger.info(f"Bot logged in successfully as {self.user} (ID: {self.user.id})")
         logger.info("Bot is ready to serve music!")
         # Start background loop for voice channel presence tracking

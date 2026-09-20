@@ -1,3 +1,5 @@
+"""Core Pokemon Gacha service handling generation, evolution, feeding, and state."""
+
 import json
 import random
 from typing import Any
@@ -24,6 +26,15 @@ logger = get_logger(__name__)
 
 
 def format_types(type1: str, type2: str | None = None) -> str:
+    """Format element type strings with emojis.
+
+    Args:
+        type1 (str): Primary elemental type.
+        type2 (str | None): Optional secondary elemental type. Defaults to None.
+
+    Returns:
+        str: Emoji formatted type string.
+    """
     t1 = TYPE_EMOJIS.get(type1, type1)
     if type2:
         t2 = TYPE_EMOJIS.get(type2, type2)
@@ -32,7 +43,17 @@ def format_types(type1: str, type2: str | None = None) -> str:
 
 
 class GachaService:
-    def __init__(self, db_service: DatabaseService, pixellab_service: PixelLabService):
+    """Service managing Pokemon Gacha rolls, evolutions, feeding, and companion profiles."""
+
+    def __init__(
+        self, db_service: DatabaseService, pixellab_service: PixelLabService
+    ) -> None:
+        """Initialize GachaService with database, PixelLab, and Gemini clients.
+
+        Args:
+            db_service (DatabaseService): Storage service for user and pet records.
+            pixellab_service (PixelLabService): Pixel art generator service.
+        """
         self.db_service = db_service
         self.pixellab_service = pixellab_service
         if not settings.GEMINI_API_KEY:
@@ -163,11 +184,18 @@ class GachaService:
     async def generate_evolution_image(
         self, prompt: str, prev_img_url: str | None = None
     ) -> bytes:
-        """
-        Generate an evolved stage image using PixelLab.
+        """Generate an evolved stage image using PixelLab.
+
         Note: init_image has been disabled for evolved stages to allow distinct visual
         and structural changes (e.g. growing horns, tails, limbs) while prompt alignment
         ensures color and style consistency.
+
+        Args:
+            prompt (str): Text prompt describing the evolved form.
+            prev_img_url (str | None): Optional URL of previous stage image. Defaults to None.
+
+        Returns:
+            bytes: Generated pixel art bytes.
         """
         # Call PixelLab Service to generate image without init_image constraint
         pixel_bytes = await self.pixellab_service.generate_pixel_art(
@@ -182,10 +210,17 @@ class GachaService:
     async def roll_gacha(
         self, discord_id: str, pre_rolled_attrs: dict[str, Any] | None = None
     ) -> tuple[int, dict[str, Any], bytes, bytes]:
-        """
-        Deduct coins, roll attributes, call LLM to generate descriptions,
-        call Image Gen for Stage 1, resize to pixel art, and save pet in DB.
-        Returns: (pet_id, pet_dict, stage1_hd_bytes, stage1_pixel_bytes)
+        """Deduct coins, roll attributes, and generate a new Pokemon companion.
+
+        Calls LLM to generate descriptions, calls Image Gen for Stage 1,
+        resizes to pixel art, and saves pet in DB.
+
+        Args:
+            discord_id (str): Discord user ID rolling gacha.
+            pre_rolled_attrs (dict[str, Any] | None): Optional attributes override. Defaults to None.
+
+        Returns:
+            tuple[int, dict[str, Any], bytes, bytes]: (pet_id, pet_dict, stage1_hd_bytes, stage1_pixel_bytes).
         """
         # 1. Check if there is a pending gacha roll saved from a previous failure
         pending_path = f"users/{discord_id}/pending_gacha"
@@ -549,9 +584,16 @@ class GachaService:
     async def align_existing_pet_prompts(
         self, pet_data: dict[str, Any]
     ) -> dict[str, Any]:
-        """
-        Use Gemini to align/correct Stage 2, Stage 3, and Mega visual prompts of an existing pet
-        to ensure they strictly share the same color palette, design theme, style, and features of Stage 1.
+        """Align and correct visual prompts for advanced evolution stages using Gemini.
+
+        Ensures stages strictly share the same color palette, design theme, style,
+        and features of Stage 1.
+
+        Args:
+            pet_data (dict[str, Any]): Pet record data dictionary.
+
+        Returns:
+            dict[str, Any]: Pet data dictionary with aligned prompts.
         """
         from app.domain.models.gacha import AlignedPrompts
 

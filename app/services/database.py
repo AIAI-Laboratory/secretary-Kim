@@ -1,5 +1,8 @@
+"""Database integration service for Firebase Realtime Database."""
+
 import asyncio
 import json
+from collections.abc import Callable
 from typing import Any
 
 import firebase_admin
@@ -13,11 +16,18 @@ logger = get_logger(__name__)
 
 
 class DatabaseService:
-    def __init__(self):
+    """Async wrapper service for Firebase Realtime Database operations."""
+
+    def __init__(self) -> None:
+        """Initialize uninitialized database service state."""
         self._initialized = False
 
     async def init_db(self) -> None:
-        """Initialize the Firebase App and connect to the Realtime Database."""
+        """Initialize the Firebase App and connect to the Realtime Database.
+
+        Raises:
+            ValueError: If credentials or database URL are missing from configuration.
+        """
         if self._initialized:
             return
 
@@ -64,38 +74,84 @@ class DatabaseService:
         self._initialized = True
 
     async def get_ref(self, path: str = "/") -> firebase_db.Reference:
-        """Get a reference to a path in the database. Thread-safe."""
+        """Get a reference to a path in the database.
+
+        Args:
+            path (str): Realtime database path string. Defaults to "/".
+
+        Returns:
+            firebase_db.Reference: Thread-safe Firebase path reference.
+        """
         if not self._initialized:
             await self.init_db()
         return firebase_db.reference(path)
 
     async def get_data(self, path: str) -> Any:
-        """Read data from a path asynchronously."""
+        """Read data from a path asynchronously.
+
+        Args:
+            path (str): Database path to fetch.
+
+        Returns:
+            Any: Value retrieved from the Realtime Database.
+        """
         ref = await self.get_ref(path)
         return await asyncio.to_thread(ref.get)
 
     async def set_data(self, path: str, data: Any) -> None:
-        """Write/overwrite data to a path asynchronously."""
+        """Write or overwrite data to a path asynchronously.
+
+        Args:
+            path (str): Target path.
+            data (Any): Payload to store.
+        """
         ref = await self.get_ref(path)
         await asyncio.to_thread(ref.set, data)
 
     async def update_data(self, path: str, data: dict[str, Any]) -> None:
-        """Update fields at a path asynchronously."""
+        """Update fields at a path asynchronously.
+
+        Args:
+            path (str): Target path.
+            data (dict[str, Any]): Dictionary of fields to update.
+        """
         ref = await self.get_ref(path)
         await asyncio.to_thread(ref.update, data)
 
     async def push_data(self, path: str, data: Any) -> str:
-        """Push (append) data to a list and return the new child's key/ID."""
+        """Push data to a list and return the new child key.
+
+        Args:
+            path (str): Target list path.
+            data (Any): Payload to append.
+
+        Returns:
+            str: Generated unique child key ID.
+        """
         ref = await self.get_ref(path)
         new_ref = await asyncio.to_thread(ref.push, data)
         return new_ref.key
 
     async def delete_data(self, path: str) -> None:
-        """Delete data at a path asynchronously."""
+        """Delete data at a path asynchronously.
+
+        Args:
+            path (str): Path to remove.
+        """
         ref = await self.get_ref(path)
         await asyncio.to_thread(ref.delete)
 
-    async def run_transaction(self, path: str, transaction_fn) -> Any:
-        """Run a transaction at the given path asynchronously."""
+    async def run_transaction(
+        self, path: str, transaction_fn: Callable[[Any], Any]
+    ) -> Any:
+        """Run a transaction at the given path asynchronously.
+
+        Args:
+            path (str): Target path.
+            transaction_fn (Callable[[Any], Any]): Atomic modifier callback.
+
+        Returns:
+            Any: Committed transaction result.
+        """
         ref = await self.get_ref(path)
         return await asyncio.to_thread(ref.transaction, transaction_fn)

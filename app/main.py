@@ -1,3 +1,5 @@
+"""Bootstrap and main execution routine for Secretary Kim."""
+
 import sys
 
 from app.core.config import settings
@@ -7,7 +9,12 @@ from app.core.logger import get_logger
 logger = get_logger(__name__)
 
 
-def main():
+def main() -> None:
+    """Initialize dependency container, register skills, and run Discord bot.
+
+    Raises:
+        SystemExit: If the Discord bot token is missing or if the bot encounters a fatal error.
+    """
     logger.info("Starting Discord bot Secretary Kim...")
 
     # Check Discord Bot token

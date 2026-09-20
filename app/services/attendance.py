@@ -1,3 +1,5 @@
+"""Business service for tracking voice room attendance and updating leaderboards."""
+
 import datetime
 import hashlib
 from typing import Any
@@ -12,12 +14,17 @@ logger = get_logger(__name__)
 
 
 class AttendanceService:
-    """
-    Service to track user presence in voice channels, reward attendance coins,
-    and update the server leaderboard channel using Firebase Realtime Database.
+    """Track user presence in voice channels and reward attendance coins.
+
+    Updates the server leaderboard channel using Firebase Realtime Database.
     """
 
-    def __init__(self, db_service: DatabaseService):
+    def __init__(self, db_service: DatabaseService) -> None:
+        """Initialize attendance service with database client.
+
+        Args:
+            db_service (DatabaseService): Storage service for user attendance records.
+        """
         self.db_service = db_service
         self._last_leaderboard_hash: str | None = None
         self._leaderboard_msg_id: int | None = None
@@ -25,9 +32,16 @@ class AttendanceService:
     async def get_user_coins(
         self, discord_id: str, db: Any | None = None
     ) -> dict[str, Any]:
-        """
-        Get the user's current attendance coins and accumulated minutes.
+        """Get the user's current attendance coins and accumulated minutes.
+
         Creates the user entry with default values if they do not exist in Firebase.
+
+        Args:
+            discord_id (str): Discord user ID.
+            db (Any | None): Optional database handle. Defaults to None.
+
+        Returns:
+            dict[str, Any]: Dictionary containing coins and voice minutes.
         """
         path = f"users/{discord_id}"
         user = await self.db_service.get_data(path)
@@ -53,9 +67,16 @@ class AttendanceService:
     async def get_leaderboard_data(
         self, limit: int = 10, db: Any | None = None
     ) -> list[dict[str, Any]]:
-        """
-        Fetch top users ordered by coins, then by accumulated minutes from Firebase.
-        Only displays users with > 0 coins or minutes.
+        """Fetch top users ordered by coins and minutes from Firebase.
+
+        Only displays users with greater than zero coins or minutes.
+
+        Args:
+            limit (int): Maximum number of top records to return. Defaults to 10.
+            db (Any | None): Optional database handle. Defaults to None.
+
+        Returns:
+            list[dict[str, Any]]: Sorted list of top user record dictionaries.
         """
         users = await self.db_service.get_data("users") or {}
         leaderboard = []
@@ -79,12 +100,16 @@ class AttendanceService:
         return leaderboard[:limit]
 
     async def track_voice_presence(self, bot: discord.Client) -> None:
-        """
-        Scan all voice channels across all guilds the bot is connected to.
-        Checks for voice rules:
-        - Must be in a channel with at least 1 non-bot member.
-        - Must not be self-muted/deafened or server-muted/deafened.
-        Increments active members' voice presence by 1 minute.
+        """Scan all voice channels across all connected guilds.
+
+        Checks voice rules:
+            - Channel has at least 1 non-bot member.
+            - Member is not self-muted/deafened or server-muted/deafened.
+
+        Increments active members' presence by 1 coin per minute.
+
+        Args:
+            bot (discord.Client): Active Discord bot instance.
         """
         users_updated = False
 
@@ -130,9 +155,13 @@ class AttendanceService:
     async def update_leaderboard_channel(
         self, bot: discord.Client, db: Any | None = None
     ) -> None:
-        """
-        Builds the current top leaderboard Embed and edits/creates the message in the leaderboard channel.
+        """Build the top leaderboard Embed and edit or post message in channel.
+
         Uses auto-discovery to reuse the existing leaderboard message.
+
+        Args:
+            bot (discord.Client): Active Discord bot instance.
+            db (Any | None): Optional database handle. Defaults to None.
         """
         channel_id = settings.LEADERBOARD_CHANNEL_ID
         if not channel_id:

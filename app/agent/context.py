@@ -1,3 +1,5 @@
+"""Context extraction and prompt engineering engine for the AI Agent."""
+
 import datetime
 
 from app.agent.models import AgentRequest, SkillContext
@@ -7,14 +9,16 @@ logger = get_logger(__name__)
 
 
 class ContextEngine:
-    """
-    Responsible for extracting and normalizing Context from Discord/User requests
-    to provide to the LLM or Skills for execution.
+    """Extract and normalize context from Discord/User requests.
+
+    Provides formatted runtime information to the LLM and skills for execution.
     """
 
     def get_time_context(self) -> str:
-        """
-        Get the current time information formatted in English.
+        """Get the current time information formatted in English.
+
+        Returns:
+            str: Human-readable English date, time, and timezone information.
         """
         tz = datetime.timezone(datetime.timedelta(hours=7))
         now = datetime.datetime.now(tz)
@@ -31,8 +35,13 @@ class ContextEngine:
         return f"Today is {weekday}, {now.strftime('%B %d, %Y')}. The current time is {now.strftime('%H:%M:%S')} (timezone UTC+7)."
 
     async def build_skill_context(self, request: AgentRequest) -> SkillContext:
-        """
-        Build a SkillContext object from the original AgentRequest, including scanning Discord server info.
+        """Build a SkillContext object from the original AgentRequest.
+
+        Args:
+            request (AgentRequest): Inbound request payload from presentation layer.
+
+        Returns:
+            SkillContext: Enriched context including guild members, channels, and time.
         """
         server_members = {}
         voice_channels = {}
@@ -71,8 +80,13 @@ class ContextEngine:
         )
 
     def build_system_instruction(self, skill_descriptions: str) -> str:
-        """
-        Create the system prompt instructing Gemini to act as an orchestrating Agent.
+        """Create the system prompt instructing Gemini to act as an orchestrating Agent.
+
+        Args:
+            skill_descriptions (str): Formatted descriptions of available skills.
+
+        Returns:
+            str: Complete system prompt for the Gemini LLM.
         """
         time_info = self.get_time_context()
         instruction = (

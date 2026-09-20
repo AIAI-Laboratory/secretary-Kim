@@ -1,3 +1,5 @@
+"""Agent skill for querying voice attendance coins and leaderboard statistics."""
+
 from typing import Any
 
 import discord
@@ -9,22 +11,40 @@ from app.services.attendance import AttendanceService
 
 
 class AttendanceSkill(BaseSkill):
-    """
-    Skill to manage attendance coins and display the voice room activity leaderboard.
-    """
+    """Skill to manage attendance coins and display the voice room activity leaderboard."""
 
-    def __init__(self, attendance_service: AttendanceService):
+    def __init__(self, attendance_service: AttendanceService) -> None:
+        """Initialize AttendanceSkill with attendance tracking service.
+
+        Args:
+            attendance_service (AttendanceService): Service handling voice coins and leaderboards.
+        """
         self.attendance_service = attendance_service
 
     @property
     def name(self) -> str:
+        """Get the unique name of the skill.
+
+        Returns:
+            str: Skill identifier string.
+        """
         return "attendance"
 
     @property
     def description(self) -> str:
+        """Get the descriptive summary of the attendance skill.
+
+        Returns:
+            str: Description of attendance capabilities.
+        """
         return "Checks attendance coin balance and displays the voice room attendance leaderboard."
 
     def get_function_declarations(self) -> list[types.FunctionDeclaration]:
+        """Provide function declarations for attendance actions to Gemini.
+
+        Returns:
+            list[types.FunctionDeclaration]: Tool declarations for attendance queries.
+        """
         return [
             types.FunctionDeclaration(
                 name="check_my_attendance_coins",
@@ -52,6 +72,16 @@ class AttendanceSkill(BaseSkill):
     async def execute(
         self, function_name: str, args: dict[str, Any], context: SkillContext
     ) -> SkillResult:
+        """Execute an attendance query requested by the agent.
+
+        Args:
+            function_name (str): Attendance function name to execute.
+            args (dict[str, Any]): Arguments passed from the LLM.
+            context (SkillContext): Interaction context containing user and channel details.
+
+        Returns:
+            SkillResult: Execution result containing coin balance or leaderboard Embed.
+        """
         if function_name == "check_my_attendance_coins":
             user_id = context.user_id
             user_name = context.user_name

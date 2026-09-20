@@ -24,3 +24,24 @@ dependencies = [
 
 [tool.uv.sources]
 pyxelate = { git = "https://github.com/sedthh/pyxelate.git" }
+
+[tool.ruff]
+target-version = "py313"
+line-length = 88
+
+[tool.ruff.lint]
+extend-select = ["D"]
+ignore = [
+    "D203",  # 1 blank line required before class docstring (incompatible with D211)
+    "D213",  # Multi-line docstring summary should start at the second line (incompatible with D212)
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["D"]
+"test/**" = ["D"]
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
+
+[tool.ruff.format]
+docstring-code-format = true

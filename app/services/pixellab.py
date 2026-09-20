@@ -1,3 +1,5 @@
+"""Integration client service for PixelLab AI pixel art generation."""
+
 import base64
 
 import httpx
@@ -17,7 +19,10 @@ class PaymentRequiredError(PixelLabError):
 
 
 class PixelLabService:
-    def __init__(self):
+    """Service client for calling PixelLab image generation APIs."""
+
+    def __init__(self) -> None:
+        """Initialize PixelLab client with base API URL."""
         self.base_url = "https://api.pixellab.ai/v2"
 
     async def generate_pixel_art(
@@ -30,20 +35,23 @@ class PixelLabService:
         init_image: bytes | None = None,
         init_image_strength: int = 300,
     ) -> bytes:
-        """
-        Generate pixel art using the PixelLab API.
+        """Generate pixel art using the PixelLab API.
 
         Args:
-            prompt: Text description of the image.
-            model: The model to use ('pixflux', 'pixen', or 'bitforge').
-            width: Image width.
-            height: Image height.
-            transparent: True to generate with a transparent background.
-            init_image: Optional initial image bytes to guide generation.
-            init_image_strength: Influence of the init image (1-999, default 300).
+            prompt (str): Text description of the image.
+            model (str): The model to use ('pixflux', 'pixen', or 'bitforge'). Defaults to 'pixflux'.
+            width (int): Image width in pixels. Defaults to 128.
+            height (int): Image height in pixels. Defaults to 128.
+            transparent (bool): True to generate with a transparent background. Defaults to True.
+            init_image (bytes | None): Optional initial image bytes to guide generation. Defaults to None.
+            init_image_strength (int): Influence of the init image (1-999). Defaults to 300.
 
         Returns:
             bytes: Raw image bytes of the generated PNG.
+
+        Raises:
+            PixelLabError: If credentials are missing, API call fails, or data is invalid.
+            PaymentRequiredError: If the account has exhausted API credits.
         """
         # Validate settings
         if not settings.PIXELLAB_API_KEY:

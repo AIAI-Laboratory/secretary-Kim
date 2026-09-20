@@ -1,3 +1,5 @@
+"""Service layer implementations for Secretary Kim."""
+
 from app.services.attendance import AttendanceService
 from app.services.event import EventService
 from app.services.music import MusicService
