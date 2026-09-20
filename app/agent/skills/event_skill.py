@@ -1,3 +1,5 @@
+"""Agent skill for managing Discord scheduled events and meetings."""
+
 from typing import Any
 
 from google.genai import types
@@ -9,22 +11,40 @@ from app.services.event import EventService
 
 
 class EventSkill(BaseSkill):
-    """
-    Skill to handle proposed event creation on Discord.
-    """
+    """Skill to handle proposed event creation on Discord."""
 
-    def __init__(self, event_service: EventService):
+    def __init__(self, event_service: EventService) -> None:
+        """Initialize EventSkill with event service.
+
+        Args:
+            event_service (EventService): Service interacting with Discord Scheduled Events.
+        """
         self.event_service = event_service
 
     @property
     def name(self) -> str:
+        """Get the unique name of the skill.
+
+        Returns:
+            str: Skill identifier string.
+        """
         return "event"
 
     @property
     def description(self) -> str:
+        """Get the descriptive summary of the event skill.
+
+        Returns:
+            str: Description of event actions supported.
+        """
         return "Creates and schedules events (Scheduled Event), meetings, and tasks on Discord."
 
     def get_function_declarations(self) -> list[types.FunctionDeclaration]:
+        """Provide function declarations for event scheduling to Gemini.
+
+        Returns:
+            list[types.FunctionDeclaration]: List of event tool declarations.
+        """
         return [
             types.FunctionDeclaration(
                 name="propose_event",
@@ -73,6 +93,16 @@ class EventSkill(BaseSkill):
     async def execute(
         self, function_name: str, args: dict[str, Any], context: SkillContext
     ) -> SkillResult:
+        """Execute an event tool call requested by the agent.
+
+        Args:
+            function_name (str): The name of the event function to execute.
+            args (dict[str, Any]): Function arguments parsed by Gemini.
+            context (SkillContext): Interaction context containing Discord member and interaction.
+
+        Returns:
+            SkillResult: Execution result with draft embed and confirmation button view.
+        """
         if function_name == "propose_event":
             # Build ProposedAction model from args received from Gemini
             action = ProposedAction(

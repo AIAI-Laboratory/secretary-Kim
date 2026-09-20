@@ -1,3 +1,5 @@
+"""Agent skill for Pokemon Gacha, pet interactions, and Pomodoro focus tracking."""
+
 import io
 from typing import Any
 
@@ -15,26 +17,47 @@ logger = get_logger(__name__)
 
 
 class GachaSkill(BaseSkill):
-    """
-    Agent skill for Pokemon Gacha and Pomodoro focus tracking.
-    """
+    """Agent skill for Pokemon Gacha and Pomodoro focus tracking."""
 
-    def __init__(self, gacha_service: GachaService, pomodoro_service: PomodoroService):
+    def __init__(
+        self, gacha_service: GachaService, pomodoro_service: PomodoroService
+    ) -> None:
+        """Initialize GachaSkill with gacha and pomodoro services.
+
+        Args:
+            gacha_service (GachaService): Service handling Pokemon Gacha operations.
+            pomodoro_service (PomodoroService): Service managing focus sessions.
+        """
         self.gacha_service = gacha_service
         self.pomodoro_service = pomodoro_service
 
     @property
     def name(self) -> str:
+        """Get the unique identifier name of the skill.
+
+        Returns:
+            str: Skill identifier string.
+        """
         return "gacha_pomodoro"
 
     @property
     def description(self) -> str:
+        """Get the description of gacha and pomodoro capabilities.
+
+        Returns:
+            str: Skill summary for the LLM prompt.
+        """
         return (
             "Handles Pokemon Gacha rolls, collection view, feeding pets coins to evolve them, "
             "and active Pokemon selection and Pomodoro focus sessions to earn currency (FP and Fruits)."
         )
 
     def get_function_declarations(self) -> list[types.FunctionDeclaration]:
+        """Provide function declarations for gacha and pomodoro actions to Gemini.
+
+        Returns:
+            list[types.FunctionDeclaration]: Tool declarations for gacha and pomodoro.
+        """
         return [
             types.FunctionDeclaration(
                 name="start_pomodoro",
@@ -82,6 +105,16 @@ class GachaSkill(BaseSkill):
     async def execute(
         self, function_name: str, args: dict[str, Any], context: SkillContext
     ) -> SkillResult:
+        """Execute a gacha or pomodoro tool call requested by the agent.
+
+        Args:
+            function_name (str): Name of the function to execute.
+            args (dict[str, Any]): Arguments passed from the LLM.
+            context (SkillContext): Interaction context containing member and interaction.
+
+        Returns:
+            SkillResult: Result of the action execution.
+        """
         client = (
             context.discord_interaction.client if context.discord_interaction else None
         )

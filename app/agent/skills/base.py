@@ -1,3 +1,5 @@
+"""Base abstractions for AI Agent skills and capability extensions."""
+
 from abc import ABC, abstractmethod
 from typing import Any
 
@@ -5,30 +7,28 @@ from google.genai import types
 
 
 class BaseSkill(ABC):
-    """
-    Base class for all Agent Skills.
+    """Base class for all Agent Skills.
+
     To add a new feature, create a class that inherits from this BaseSkill.
     """
 
     @property
     @abstractmethod
     def name(self) -> str:
-        """
-        Unique identifier name of the skill (e.g., 'music', 'event', 'weather').
-        """
+        """Unique identifier name of the skill (e.g., 'music', 'event', 'weather')."""
 
     @property
     @abstractmethod
     def description(self) -> str:
-        """
-        Brief description of the skill's functionality. The LLM can use this description
-        to understand the general capability of the skill.
+        """Brief description of the skill's functionality.
+
+        The LLM can use this description to understand the general capability of the skill.
         """
 
     @abstractmethod
     def get_function_declarations(self) -> list[types.FunctionDeclaration]:
-        """
-        Return the list of tool/function declarations provided by this skill.
+        """Return the list of tool/function declarations provided by this skill.
+
         These declarations will be sent to Gemini to perform Function Calling.
         """
 
@@ -36,11 +36,13 @@ class BaseSkill(ABC):
     async def execute(
         self, function_name: str, args: dict[str, Any], context: Any
     ) -> Any:
-        """
-        Execute the function requested by the LLM.
+        """Execute the function requested by the LLM.
 
         Args:
-            function_name: The name of the function designated by the LLM.
-            args: The arguments passed into the function as a dict.
-            context: The object containing execution context information (Discord guild, user, channel, etc.).
+            function_name (str): The name of the function designated by the LLM.
+            args (dict[str, Any]): The arguments passed into the function as a dict.
+            context (Any): The object containing execution context information.
+
+        Returns:
+            Any: The execution result, typically a SkillResult instance.
         """

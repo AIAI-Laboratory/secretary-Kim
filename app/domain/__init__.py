@@ -1,1 +1,1 @@
-# Domain layer
+"""Domain entities and business models for Secretary Kim."""

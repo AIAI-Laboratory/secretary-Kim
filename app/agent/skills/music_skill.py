@@ -1,3 +1,5 @@
+"""Agent skill for controlling Discord music playback and voice queues."""
+
 from typing import Any
 
 import discord
@@ -12,22 +14,40 @@ logger = get_logger(__name__)
 
 
 class MusicSkill(BaseSkill):
-    """
-    Skill to execute music playback on Discord integrated with MusicService and GuildMusicManager.
-    """
+    """Skill to execute music playback on Discord integrated with MusicService and GuildMusicManager."""
 
-    def __init__(self, music_service: MusicService):
+    def __init__(self, music_service: MusicService) -> None:
+        """Initialize MusicSkill with music retrieval service.
+
+        Args:
+            music_service (MusicService): Service handling audio stream extraction.
+        """
         self.music_service = music_service
 
     @property
     def name(self) -> str:
+        """Get the unique name of the skill.
+
+        Returns:
+            str: Skill identifier string.
+        """
         return "music"
 
     @property
     def description(self) -> str:
+        """Get the descriptive summary of the music skill.
+
+        Returns:
+            str: Description of music actions supported.
+        """
         return "Controls music: plays music from YouTube, pauses, resumes, skips tracks, and leaves the voice channel."
 
     def get_function_declarations(self) -> list[types.FunctionDeclaration]:
+        """Provide function declarations for music operations to Gemini.
+
+        Returns:
+            list[types.FunctionDeclaration]: List of music command specs.
+        """
         return [
             types.FunctionDeclaration(
                 name="play_music",
@@ -63,6 +83,16 @@ class MusicSkill(BaseSkill):
     async def execute(
         self, function_name: str, args: dict[str, Any], context: SkillContext
     ) -> SkillResult:
+        """Execute a music tool call requested by the agent.
+
+        Args:
+            function_name (str): Music function to execute.
+            args (dict[str, Any]): Function arguments parsed by Gemini.
+            context (SkillContext): Interaction context containing Discord guild and member info.
+
+        Returns:
+            SkillResult: Execution result with status message and optional UI Embed.
+        """
         # Get discord interaction and bot client
         interaction = context.discord_interaction
         if not interaction:

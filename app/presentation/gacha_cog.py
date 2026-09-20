@@ -1,3 +1,5 @@
+"""Pokemon Gacha and Pomodoro presentation cog for Discord."""
+
 import asyncio
 import io
 
@@ -16,7 +18,12 @@ logger = get_logger(__name__)
 class GachaHDView(discord.ui.View):
     """View containing a button to view the original HD image."""
 
-    def __init__(self, hd_url: str):
+    def __init__(self, hd_url: str) -> None:
+        """Initialize GachaHDView with link button to HD image.
+
+        Args:
+            hd_url (str): Remote URL of the high definition image.
+        """
         super().__init__(timeout=None)
         self.add_item(
             discord.ui.Button(
@@ -28,7 +35,13 @@ class GachaHDView(discord.ui.View):
 class PetListSelect(discord.ui.Select):
     """Select dropdown to set active pet."""
 
-    def __init__(self, pets, cog):
+    def __init__(self, pets: list[dict], cog: "GachaCog") -> None:
+        """Initialize pet selection dropdown.
+
+        Args:
+            pets (list[dict]): List of pet record dictionaries.
+            cog (GachaCog): Parent GachaCog instance.
+        """
         self.cog = cog
         options = []
         for p in pets[:25]:  # Discord select allows max 25 options
@@ -46,7 +59,12 @@ class PetListSelect(discord.ui.Select):
             options=options,
         )
 
-    async def callback(self, interaction: discord.Interaction):
+    async def callback(self, interaction: discord.Interaction) -> None:
+        """Handle selection of a pet to set as active companion.
+
+        Args:
+            interaction (discord.Interaction): Component interaction context.
+        """
         pet_id = int(self.values[0])
         success = await self.cog.gacha_service.set_active_pet(
             str(interaction.user.id), pet_id
@@ -65,7 +83,13 @@ class PetListSelect(discord.ui.Select):
 class PetListView(discord.ui.View):
     """View for listing pets with a dropdown selector."""
 
-    def __init__(self, pets, cog):
+    def __init__(self, pets: list[dict], cog: "GachaCog") -> None:
+        """Initialize view containing pet dropdown selector.
+
+        Args:
+            pets (list[dict]): Owned pet list.
+            cog (GachaCog): Parent GachaCog.
+        """
         super().__init__(timeout=180)
         self.add_item(PetListSelect(pets, cog))
 
@@ -73,7 +97,12 @@ class PetListView(discord.ui.View):
 class GachaCog(commands.Cog):
     """Cog containing Pomodoro focus tracker and Pokemon Gacha commands."""
 
-    def __init__(self, bot):
+    def __init__(self, bot: commands.Bot) -> None:
+        """Initialize GachaCog with bot instance and required services.
+
+        Args:
+            bot (commands.Bot): Parent bot instance.
+        """
         self.bot = bot
         self.gacha_service: GachaService = bot.gacha_service
         self.pomodoro_service: PomodoroService = bot.pomodoro_service
@@ -85,7 +114,13 @@ class GachaCog(commands.Cog):
     @app_commands.describe(duration="Focus duration in minutes (default 25)")
     async def pomodoro_start(
         self, interaction: discord.Interaction, duration: int | None = 25
-    ):
+    ) -> None:
+        """Start a Pomodoro focus timer session.
+
+        Args:
+            interaction (discord.Interaction): Slash command interaction context.
+            duration (int | None): Minutes to focus. Defaults to 25.
+        """
         if not interaction.user.voice or not interaction.user.voice.channel:
             embed = discord.Embed(
                 description="❌ You must join a voice channel before starting a Pomodoro session!",
@@ -128,7 +163,12 @@ class GachaCog(commands.Cog):
     @app_commands.command(
         name="pomodoro-cancel", description="Cancel your active Pomodoro focus session"
     )
-    async def pomodoro_cancel(self, interaction: discord.Interaction):
+    async def pomodoro_cancel(self, interaction: discord.Interaction) -> None:
+        """Cancel the active Pomodoro session without penalties.
+
+        Args:
+            interaction (discord.Interaction): Slash command interaction context.
+        """
         user_id = str(interaction.user.id)
         success, msg = await self.pomodoro_service.cancel_session(
             user_id, penalize=True
@@ -236,14 +276,20 @@ class GachaCog(commands.Cog):
 
     @app_commands.command(
         name="gacha",
-        description="Roll a procedural Pokemon companion (Costs 100 Coins)",
+        description="Roll a completely original Pokemon companion procedural design (Costs 100 Coins)",
     )
     @app_commands.describe(
         private="Show gacha roll result only to you (default: False)"
     )
     async def gacha(
         self, interaction: discord.Interaction, private: bool | None = False
-    ):
+    ) -> None:
+        """Roll a new procedural Pokemon pet and generate pixel art.
+
+        Args:
+            interaction (discord.Interaction): Slash command interaction context.
+            private (bool | None): Whether to hide response from other members. Defaults to False.
+        """
         is_private = bool(private)
         # Acknowledge immediately
         if is_private:
@@ -377,7 +423,13 @@ class GachaCog(commands.Cog):
     )
     async def pet_active(
         self, interaction: discord.Interaction, private: bool | None = False
-    ):
+    ) -> None:
+        """Display stats, level, and image of the user's active pet.
+
+        Args:
+            interaction (discord.Interaction): Slash command interaction context.
+            private (bool | None): Whether to send ephemeral message. Defaults to False.
+        """
         is_private = bool(private)
         user_id = str(interaction.user.id)
         pet = await self.gacha_service.get_active_pet(user_id)
@@ -427,7 +479,13 @@ class GachaCog(commands.Cog):
     )
     async def pet_list(
         self, interaction: discord.Interaction, private: bool | None = True
-    ):
+    ) -> None:
+        """List all pets owned by the user with active selection dropdown.
+
+        Args:
+            interaction (discord.Interaction): Slash command interaction context.
+            private (bool | None): Whether to send ephemeral response. Defaults to True.
+        """
         is_private = True if private is None else bool(private)
         user_id = str(interaction.user.id)
         pets = await self.gacha_service.get_user_pets(user_id)
@@ -481,7 +539,14 @@ class GachaCog(commands.Cog):
         interaction: discord.Interaction,
         amount: int | None = 1,
         private: bool | None = False,
-    ):
+    ) -> None:
+        """Feed fruits to the active pet and handle evolutions.
+
+        Args:
+            interaction (discord.Interaction): Slash command interaction context.
+            amount (int | None): Fruits to consume. Defaults to 1.
+            private (bool | None): Whether to send ephemeral response. Defaults to False.
+        """
         is_private = bool(private)
         # Defer immediately to avoid timeout (3-second window)
         await interaction.response.defer(ephemeral=is_private)

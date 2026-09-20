@@ -1,12 +1,12 @@
+"""Data models for Agent requests, contexts, results, and responses."""
+
 from typing import Any
 
 from pydantic import BaseModel, Field
 
 
 class AgentRequest(BaseModel):
-    """
-    Request data sent to the Agent from the presentation layer (e.g. Discord Bot, Webhook, etc.).
-    """
+    """Request data sent to the Agent from the presentation layer (e.g. Discord Bot, Webhook, etc.)."""
 
     model_config = {"arbitrary_types_allowed": True}
 
@@ -27,9 +27,9 @@ class AgentRequest(BaseModel):
 
 
 class SkillContext(BaseModel):
-    """
-    Context provided to Skills during execution.
-    Includes environment info, user list, voice channels, etc.
+    """Context provided to Skills during execution.
+
+    Includes environment info, user list, voice channels, and time context.
     """
 
     model_config = {"arbitrary_types_allowed": True}
@@ -57,9 +57,7 @@ class SkillContext(BaseModel):
 
 
 class SkillResult(BaseModel):
-    """
-    Result returned after a Skill finishes executing an action/tool.
-    """
+    """Result returned after a Skill finishes executing an action/tool."""
 
     model_config = {"arbitrary_types_allowed": True}
 
@@ -84,9 +82,7 @@ class SkillResult(BaseModel):
 
 
 class AgentResponse(BaseModel):
-    """
-    Final response from Agent Core back to the Presentation Layer.
-    """
+    """Final response from Agent Core back to the Presentation Layer."""
 
     model_config = {"arbitrary_types_allowed": True}
 

@@ -1,3 +1,5 @@
+"""Business service for managing Discord Guild Scheduled Events."""
+
 import datetime
 
 import discord
@@ -8,9 +10,9 @@ logger = get_logger(__name__)
 
 
 class EventService:
-    """
-    Pure business service for managing Discord Guild Scheduled Events.
-    No LLM client or prompt parsing logic here.
+    """Pure business service for managing Discord Guild Scheduled Events.
+
+    Contains event scheduling, start/end time validation, and Discord API calls.
     """
 
     async def create_event(
@@ -23,8 +25,19 @@ class EventService:
         location: str | None = None,
         channel_id: str | None = None,
     ) -> discord.ScheduledEvent:
-        """
-        Creates a scheduled event in the Discord Guild.
+        """Create a scheduled event in the Discord Guild.
+
+        Args:
+            guild (discord.Guild): The Discord Guild where the event will be held.
+            name (str): The name/title of the scheduled event.
+            start_time (datetime.datetime): When the event starts.
+            end_time (datetime.datetime | None): When the event finishes. Defaults to None.
+            description (str | None): Optional event details. Defaults to None.
+            location (str | None): External location text. Defaults to None.
+            channel_id (str | None): Voice channel ID if held on Discord. Defaults to None.
+
+        Returns:
+            discord.ScheduledEvent: The created Discord scheduled event.
         """
         # Ensure start_time has timezone info
         if start_time.tzinfo is None:

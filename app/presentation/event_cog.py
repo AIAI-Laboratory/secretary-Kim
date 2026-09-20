@@ -1,3 +1,5 @@
+"""Event scheduling cog, interactive action views, and AI command handlers."""
+
 import datetime
 
 import discord
@@ -63,7 +65,12 @@ def create_proposed_embed(
 class EditEventModal(discord.ui.Modal):
     """Modal to edit the draft details before approval."""
 
-    def __init__(self, parent_view: "ProposedActionView"):
+    def __init__(self, parent_view: "ProposedActionView") -> None:
+        """Initialize the edit modal with inputs populated from current draft.
+
+        Args:
+            parent_view (ProposedActionView): The parent interactive view holding the draft.
+        """
         super().__init__(title="Edit Event Information")
         self.parent_view = parent_view
         self.action = parent_view.action
@@ -109,7 +116,12 @@ class EditEventModal(discord.ui.Modal):
         )
         self.add_item(self.loc_input)
 
-    async def on_submit(self, interaction: discord.Interaction):
+    async def on_submit(self, interaction: discord.Interaction) -> None:
+        """Handle modal submission and update the parent draft view.
+
+        Args:
+            interaction (discord.Interaction): Modal submit interaction context.
+        """
         # Validate time format
         try:
             datetime.datetime.fromisoformat(self.time_input.value)
@@ -197,13 +209,28 @@ class ProposedActionView(discord.ui.View):
 
     def __init__(
         self, action: ProposedAction, requester: discord.Member, bot: commands.Bot
-    ):
+    ) -> None:
+        """Initialize the proposed action approval view.
+
+        Args:
+            action (ProposedAction): The proposed event/task payload.
+            requester (discord.Member): Discord member who asked for the proposal.
+            bot (commands.Bot): The running bot client.
+        """
         super().__init__(timeout=600)  # Timeout after 10 minutes
         self.action = action
         self.requester = requester
         self.bot = bot
 
     async def interaction_check(self, interaction: discord.Interaction) -> bool:
+        """Verify that the clicking user is the requester or an administrator.
+
+        Args:
+            interaction (discord.Interaction): Component interaction context.
+
+        Returns:
+            bool: True if authorized, False otherwise.
+        """
         # Only the original requester or Administrator/Event Manager can click buttons
         is_admin = (
             interaction.user.guild_permissions.administrator
@@ -219,7 +246,13 @@ class ProposedActionView(discord.ui.View):
     @discord.ui.button(label="Approve", style=discord.ButtonStyle.green, emoji="✅")
     async def approve(
         self, interaction: discord.Interaction, button: discord.ui.Button
-    ):
+    ) -> None:
+        """Handle click on approve button to commit the event to Discord.
+
+        Args:
+            interaction (discord.Interaction): Button interaction context.
+            button (discord.ui.Button): The clicked button.
+        """
         await interaction.response.defer()
 
         guild = interaction.guild
@@ -316,7 +349,15 @@ class ProposedActionView(discord.ui.View):
             )
 
     @discord.ui.button(label="Reject", style=discord.ButtonStyle.red, emoji="✖️")
-    async def reject(self, interaction: discord.Interaction, button: discord.ui.Button):
+    async def reject(
+        self, interaction: discord.Interaction, button: discord.ui.Button
+    ) -> None:
+        """Handle click on reject button to cancel draft.
+
+        Args:
+            interaction (discord.Interaction): Button interaction context.
+            button (discord.ui.Button): The clicked button.
+        """
         await interaction.response.defer()
 
         embed = discord.Embed(
@@ -334,7 +375,15 @@ class ProposedActionView(discord.ui.View):
         )
 
     @discord.ui.button(label="Edit", style=discord.ButtonStyle.secondary, emoji="✏️")
-    async def edit(self, interaction: discord.Interaction, button: discord.ui.Button):
+    async def edit(
+        self, interaction: discord.Interaction, button: discord.ui.Button
+    ) -> None:
+        """Handle click on edit button to open edit modal.
+
+        Args:
+            interaction (discord.Interaction): Button interaction context.
+            button (discord.ui.Button): The clicked button.
+        """
         modal = EditEventModal(self)
         await interaction.response.send_modal(modal)
 
@@ -342,7 +391,12 @@ class ProposedActionView(discord.ui.View):
 class HelpView(discord.ui.View):
     """View containing interactive pagination buttons for the help menu."""
 
-    def __init__(self, user_id: str):
+    def __init__(self, user_id: str) -> None:
+        """Initialize paginated help view with user ID check.
+
+        Args:
+            user_id (str): Discord user ID who invoked the help command.
+        """
         super().__init__(timeout=180)
         self.user_id = user_id
         self.current_page = 0
@@ -356,6 +410,14 @@ class HelpView(discord.ui.View):
         self._update_button_states()
 
     async def interaction_check(self, interaction: discord.Interaction) -> bool:
+        """Ensure only the command requester can flip pages.
+
+        Args:
+            interaction (discord.Interaction): Component interaction context.
+
+        Returns:
+            bool: True if allowed, False otherwise.
+        """
         if str(interaction.user.id) != self.user_id:
             await interaction.response.send_message(
                 "❌ This help menu is only for the user who requested it.",
@@ -365,6 +427,11 @@ class HelpView(discord.ui.View):
         return True
 
     def create_page1_embed(self) -> discord.Embed:
+        """Create embed for Pokemon Gacha and Pomodoro commands.
+
+        Returns:
+            discord.Embed: Formatted page 1 embed.
+        """
         embed = discord.Embed(
             title="👾 Pokémon Gacha & Pomodoro Focus",
             description="Level up productivity, earn coins, and raise unique procedural companions!",
@@ -415,17 +482,17 @@ class HelpView(discord.ui.View):
         return embed
 
     def create_page2_embed(self) -> discord.Embed:
+        """Create embed for music playback commands.
+
+        Returns:
+            discord.Embed: Formatted page 2 embed.
+        """
         embed = discord.Embed(
             title="🎵 Music Player",
-            description="Play high-quality audio in your voice channel.",
+            description="Play high-quality music from YouTube directly in your voice channels.",
             color=0x57F287,
         )
         embed.add_field(
-            name="`/play <query>`",
-            value=(
-                "• **Prerequisites**: Must join a voice channel.\n"
-                "• **How it works**: Connects bot to your voice channel (or moves it if idle), resolves YouTube URLs/search keywords via `yt-dlp`, prepares direct stream links, and appends them to the queue. Automatically starts playing if queue was empty."
-            ),
             inline=False,
         )
         embed.add_field(
@@ -472,6 +539,11 @@ class HelpView(discord.ui.View):
         return embed
 
     def create_page3_embed(self) -> discord.Embed:
+        """Create embed for AI assistant interactions.
+
+        Returns:
+            discord.Embed: Formatted page 3 embed.
+        """
         embed = discord.Embed(
             title="🤖 Assistant / AI Chat",
             description="Talk to Secretary Kim in natural language to perform complex scheduling and automation.",
@@ -504,7 +576,13 @@ class HelpView(discord.ui.View):
     @discord.ui.button(label="👾 Gacha & Pomodoro", style=discord.ButtonStyle.primary)
     async def button_gacha(
         self, interaction: discord.Interaction, button: discord.ui.Button
-    ):
+    ) -> None:
+        """Switch view to Gacha and Pomodoro page.
+
+        Args:
+            interaction (discord.Interaction): Button interaction context.
+            button (discord.ui.Button): The clicked button.
+        """
         self.current_page = 0
         self._update_button_states()
         await interaction.response.edit_message(embed=self.pages[0], view=self)
@@ -512,7 +590,13 @@ class HelpView(discord.ui.View):
     @discord.ui.button(label="🎵 Music Player", style=discord.ButtonStyle.success)
     async def button_music(
         self, interaction: discord.Interaction, button: discord.ui.Button
-    ):
+    ) -> None:
+        """Switch view to Music player page.
+
+        Args:
+            interaction (discord.Interaction): Button interaction context.
+            button (discord.ui.Button): The clicked button.
+        """
         self.current_page = 1
         self._update_button_states()
         await interaction.response.edit_message(embed=self.pages[1], view=self)
@@ -520,7 +604,13 @@ class HelpView(discord.ui.View):
     @discord.ui.button(label="🤖 AI Assistant", style=discord.ButtonStyle.secondary)
     async def button_ai(
         self, interaction: discord.Interaction, button: discord.ui.Button
-    ):
+    ) -> None:
+        """Switch view to AI assistant page.
+
+        Args:
+            interaction (discord.Interaction): Button interaction context.
+            button (discord.ui.Button): The clicked button.
+        """
         self.current_page = 2
         self._update_button_states()
         await interaction.response.edit_message(embed=self.pages[2], view=self)
@@ -529,7 +619,12 @@ class HelpView(discord.ui.View):
 class EventCog(commands.Cog):
     """Cog to handle routing natural language requests through the central AI Agent."""
 
-    def __init__(self, bot):
+    def __init__(self, bot: commands.Bot) -> None:
+        """Initialize EventCog with parent bot client.
+
+        Args:
+            bot (commands.Bot): Parent bot instance.
+        """
         self.bot = bot
 
     @app_commands.command(
@@ -539,7 +634,13 @@ class EventCog(commands.Cog):
     @app_commands.describe(
         request="Request content (e.g. play a song / schedule a meeting at 3 PM)"
     )
-    async def kim(self, interaction: discord.Interaction, request: str):
+    async def kim(self, interaction: discord.Interaction, request: str) -> None:
+        """Process natural language commands through Secretary Kim AI Agent.
+
+        Args:
+            interaction (discord.Interaction): Slash command interaction context.
+            request (str): Natural language instruction.
+        """
         # Prevent Discord timeout after 3 seconds
         await interaction.response.defer()
 
@@ -600,6 +701,11 @@ class EventCog(commands.Cog):
         name="help",
         description="Show all available slash commands of Secretary Kim with interactive pagination",
     )
-    async def help(self, interaction: discord.Interaction):
+    async def help(self, interaction: discord.Interaction) -> None:
+        """Show interactive help menu with categorized pages.
+
+        Args:
+            interaction (discord.Interaction): Slash command interaction context.
+        """
         view = HelpView(str(interaction.user.id))
         await interaction.response.send_message(embed=view.pages[0], view=view)

@@ -1,3 +1,5 @@
+"""Image rendering service for procedural Pokemon evolution animated GIFs."""
+
 import io
 import math
 import random
@@ -11,7 +13,14 @@ logger = get_logger(__name__)
 
 
 async def download_image_bytes(url: str) -> bytes:
-    """Download image bytes from a URL with timeout protection."""
+    """Download image bytes from a URL with timeout protection.
+
+    Args:
+        url (str): Web URL to fetch image from.
+
+    Returns:
+        bytes: Raw image file content.
+    """
     logger.info(f"Downloading image for evolution animation from: {url}")
     async with httpx.AsyncClient() as client:
         resp = await client.get(url, timeout=30.0)
@@ -19,15 +28,34 @@ async def download_image_bytes(url: str) -> bytes:
         return resp.content
 
 
-def create_silhouette(img: Image.Image, color=(255, 255, 255, 255)) -> Image.Image:
-    """Create a solid color silhouette from an RGBA image preserving transparency."""
+def create_silhouette(
+    img: Image.Image, color: tuple[int, int, int, int] = (255, 255, 255, 255)
+) -> Image.Image:
+    """Create a solid color silhouette from an RGBA image preserving transparency.
+
+    Args:
+        img (Image.Image): Source RGBA image.
+        color (tuple[int, int, int, int]): Silhouette RGBA fill color. Defaults to white.
+
+    Returns:
+        Image.Image: Silhouette image matching the alpha mask.
+    """
     silhouette = Image.new("RGBA", img.size, color)
     silhouette.putalpha(img.getchannel("A"))
     return silhouette
 
 
-def get_octagon_points(cx: int, cy: int, r: int) -> list[tuple]:
-    """Calculate the 8 vertices of a regular octagon given a center and radius."""
+def get_octagon_points(cx: int, cy: int, r: int) -> list[tuple[int, int]]:
+    """Calculate the 8 vertices of a regular octagon given a center and radius.
+
+    Args:
+        cx (int): Center X coordinate.
+        cy (int): Center Y coordinate.
+        r (int): Radius of the bounding circle.
+
+    Returns:
+        list[tuple[int, int]]: List of 8 coordinate tuples.
+    """
     r_diag = int(r * 0.7071)
     return [
         (cx + r, cy),
@@ -44,9 +72,18 @@ def get_octagon_points(cx: int, cy: int, r: int) -> list[tuple]:
 def draw_evolution_background(
     frame_idx: int, width: int = 128, height: int = 128, pet_id: int = 0
 ) -> Image.Image:
-    """
-    Render a frame of the evolution background.
+    """Render a single frame of the evolution background.
+
     Draws concentric octagons that pulse/wave outwards, and white sparkles floating inwards.
+
+    Args:
+        frame_idx (int): Current animation frame index.
+        width (int): Frame width in pixels. Defaults to 128.
+        height (int): Frame height in pixels. Defaults to 128.
+        pet_id (int): Pet ID used for random seed deterministic rendering. Defaults to 0.
+
+    Returns:
+        Image.Image: Rendered RGBA background image.
     """
     bg = Image.new("RGBA", (width, height), (0, 0, 0, 0))
     draw = ImageDraw.Draw(bg)
@@ -103,9 +140,16 @@ def draw_evolution_background(
 
 
 def generate_charging_gif(current_png_bytes: bytes, pet_id: int) -> bytes:
-    """
-    Generate an animated GIF of the current pet charging/concentrating power.
+    """Generate an animated GIF of the current pet charging and concentrating power.
+
     Pet flashes between normal and white silhouette over a pulsing octagon background.
+
+    Args:
+        current_png_bytes (bytes): Current pet pixel PNG bytes.
+        pet_id (int): Pet ID used for seed calculation.
+
+    Returns:
+        bytes: Encoded transparent animated GIF bytes.
     """
     current_img = Image.open(io.BytesIO(current_png_bytes)).convert("RGBA")
     current_img = current_img.resize((128, 128), Image.Resampling.NEAREST)
@@ -150,11 +194,17 @@ def generate_charging_gif(current_png_bytes: bytes, pet_id: int) -> bytes:
 def generate_complete_evolution_gif(
     current_png_bytes: bytes, new_png_bytes: bytes, pet_id: int
 ) -> bytes:
-    """
-    Generate a full evolution sequence GIF:
-    - Charging Phase (15 frames): Current pet flashing with glowing background and sparkles.
-    - Morphing Phase (10 frames): Rapidly flashing old/new silhouettes with expanding explosion ring.
-    - Reveal Phase (15 frames): New pet flashing, background fading out, settling into normal static new pet.
+    """Generate a full evolution sequence GIF.
+
+    Includes charging, morphing silhouettes, and new pet reveal phases.
+
+    Args:
+        current_png_bytes (bytes): Image bytes of the pre-evolution form.
+        new_png_bytes (bytes): Image bytes of the newly evolved form.
+        pet_id (int): Identifier of the evolving pet.
+
+    Returns:
+        bytes: Encoded complete evolution GIF bytes.
     """
     current_img = Image.open(io.BytesIO(current_png_bytes)).convert("RGBA")
     current_img = current_img.resize((128, 128), Image.Resampling.NEAREST)

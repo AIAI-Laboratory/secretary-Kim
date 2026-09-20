@@ -1,1 +1,1 @@
-# Discord Research Assistant package
+"""Secretary Kim application package."""

@@ -1,7 +1,11 @@
+"""Domain models for event scheduling and proposed actions."""
+
 from pydantic import BaseModel, Field
 
 
 class ProposedAction(BaseModel):
+    """Structured action parsed from natural language for event/task creation."""
+
     is_valid_event: bool = Field(
         description="True if the prompt is a request to create a task or event on Discord. False if the model does not understand the request or if it is unrelated."
     )

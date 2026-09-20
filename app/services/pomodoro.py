@@ -1,3 +1,5 @@
+"""Business service for Pomodoro focus sessions and timer tracking."""
+
 import datetime
 from typing import Any
 
@@ -9,7 +11,17 @@ logger = get_logger(__name__)
 
 
 class PomodoroService:
-    def __init__(self, db_service: DatabaseService, gacha_service: GachaService):
+    """Service managing Pomodoro focus session state, progress, and completions."""
+
+    def __init__(
+        self, db_service: DatabaseService, gacha_service: GachaService
+    ) -> None:
+        """Initialize PomodoroService with database and gacha services.
+
+        Args:
+            db_service (DatabaseService): Storage service for session persistence.
+            gacha_service (GachaService): Service handling pet and user accounts.
+        """
         self.db_service = db_service
         self.gacha_service = gacha_service
 
@@ -20,7 +32,17 @@ class PomodoroService:
         text_channel_id: str,
         duration_mins: int = 25,
     ) -> tuple[bool, str]:
-        """Start a new Pomodoro session for the user."""
+        """Start a new Pomodoro session for the user.
+
+        Args:
+            discord_id (str): Discord user ID.
+            channel_id (str): Voice channel ID where user is focusing.
+            text_channel_id (str): Text channel ID for sending notifications.
+            duration_mins (int): Target session duration in minutes. Defaults to 25.
+
+        Returns:
+            tuple[bool, str]: (Success status, feedback message).
+        """
         await self.gacha_service.check_or_create_user(None, discord_id)
 
         # Check if user already has an active session
@@ -51,7 +73,15 @@ class PomodoroService:
     async def get_active_session(
         self, discord_id: str, db: Any | None = None
     ) -> dict[str, Any] | None:
-        """Retrieve the active Pomodoro session details for the user."""
+        """Retrieve the active Pomodoro session details for the user.
+
+        Args:
+            discord_id (str): Discord user ID.
+            db (Any | None): Optional database session. Defaults to None.
+
+        Returns:
+            dict[str, Any] | None: Session dictionary if active, else None.
+        """
         pomo_data = await self.db_service.get_data(f"users/{discord_id}/pomodoro")
         if not pomo_data or not pomo_data.get("start_time"):
             return None
@@ -64,9 +94,13 @@ class PomodoroService:
         }
 
     async def check_session_status(self, discord_id: str) -> tuple[bool, int, int]:
-        """
-        Check if user's focus session is completed.
-        Returns: (is_completed, elapsed_seconds, remaining_seconds)
+        """Check if user's focus session is completed.
+
+        Args:
+            discord_id (str): Discord user ID.
+
+        Returns:
+            tuple[bool, int, int]: (is_completed, elapsed_seconds, remaining_seconds).
         """
         session = await self.get_active_session(discord_id)
         if not session:
@@ -84,7 +118,14 @@ class PomodoroService:
     async def complete_session(
         self, discord_id: str
     ) -> tuple[bool, str, dict[str, Any]]:
-        """Complete the active focus session without any currency rewards."""
+        """Complete the active focus session without any currency rewards.
+
+        Args:
+            discord_id (str): Discord user ID.
+
+        Returns:
+            tuple[bool, str, dict[str, Any]]: (Success, message, result details).
+        """
         session = await self.get_active_session(discord_id)
         if not session:
             return False, "You do not have an active focus session.", {}
@@ -102,7 +143,15 @@ class PomodoroService:
     async def cancel_session(
         self, discord_id: str, penalize: bool = True
     ) -> tuple[bool, str]:
-        """Cancel the active focus session without any penalty."""
+        """Cancel the active focus session without any penalty.
+
+        Args:
+            discord_id (str): Discord user ID.
+            penalize (bool): Whether to apply penalties. Defaults to True.
+
+        Returns:
+            tuple[bool, str]: (Success status, feedback message).
+        """
         session = await self.get_active_session(discord_id)
         if not session:
             return False, "You do not have an active focus session to cancel."

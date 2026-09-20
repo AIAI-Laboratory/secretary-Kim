@@ -1,3 +1,5 @@
+"""Prompt engineering templates for procedural Pokemon Gacha creature designs."""
+
 SYSTEM_PROMPT_TEMPLATE = (
     "You are a world-class pocket monster designer with a deep sense of creativity and narrative. "
     "Your task is to design a fully original fictional monster species inspired by the provided concept, types, and rarity.\n\n"
