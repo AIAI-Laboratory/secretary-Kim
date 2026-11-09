@@ -194,16 +194,10 @@ class MusicService:
                         "title": info.get("title") or "YouTube Playlist",
                         "webpage_url": cleaned_query,
                         "uploader": (
-                            info.get("uploader")
-                            or info.get("channel")
-                            or "YouTube"
+                            info.get("uploader") or info.get("channel") or "YouTube"
                         ),
                         "thumbnail": info.get("thumbnail")
-                        or (
-                            valid_entries[0]["thumbnail"]
-                            if valid_entries
-                            else None
-                        ),
+                        or (valid_entries[0]["thumbnail"] if valid_entries else None),
                         "entries": valid_entries,
                         "track_count": len(valid_entries),
                     }

@@ -1,6 +1,7 @@
 """Discord presentation layer and music bot controller."""
 
 import asyncio
+import random
 from typing import Any
 
 import discord
@@ -87,6 +88,15 @@ class GuildMusicManager:
             bool: True if playing immediately, False if queued.
         """
         return await self.add_tracks([track], text_channel)
+
+    def shuffle_queue(self) -> int:
+        """Shuffle the current track queue.
+
+        Returns:
+            int: Number of tracks in the queue that were shuffled.
+        """
+        random.shuffle(self.queue)
+        return len(self.queue)
 
     async def play_next(self) -> None:
         """Play the next song in the queue."""
