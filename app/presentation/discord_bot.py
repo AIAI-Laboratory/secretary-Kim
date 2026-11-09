@@ -48,10 +48,23 @@ class GuildMusicManager:
             None  # Countdown task to automatically leave the voice channel
         )
 
-    async def add_track(self, track: dict, text_channel: discord.TextChannel) -> bool:
-        """Add a new song to the queue. Returns True if playing immediately, False if queued."""
+    async def add_tracks(
+        self, tracks: list[dict], text_channel: discord.TextChannel
+    ) -> bool:
+        """Add multiple tracks to the queue.
+
+        Args:
+            tracks (list[dict]): List of track metadata dictionaries.
+            text_channel (discord.TextChannel): Text channel to send announcements.
+
+        Returns:
+            bool: True if playing immediately, False if queued.
+        """
+        if not tracks:
+            return False
+
         self.text_channel = text_channel
-        self.queue.append(track)
+        self.queue.extend(tracks)
 
         if (
             self.voice_client
@@ -63,7 +76,19 @@ class GuildMusicManager:
             return True
         return False
 
-    async def play_next(self):
+    async def add_track(self, track: dict, text_channel: discord.TextChannel) -> bool:
+        """Add a single song to the queue.
+
+        Args:
+            track (dict): Track metadata dictionary.
+            text_channel (discord.TextChannel): Text channel to send announcements.
+
+        Returns:
+            bool: True if playing immediately, False if queued.
+        """
+        return await self.add_tracks([track], text_channel)
+
+    async def play_next(self) -> None:
         """Play the next song in the queue."""
         if not self.voice_client or not self.voice_client.is_connected():
             return
@@ -88,11 +113,16 @@ class GuildMusicManager:
         try:
             # Re-extract direct stream URL from YouTube because YouTube links expire after a few hours
             try:
-                info = await self.bot.music_service.extract_info(track["webpage_url"])
-                stream_url = info["url"]
+                info = await self.bot.music_service.extract_info(
+                    track["webpage_url"], force_single=True
+                )
+                stream_url = info.get("url")
             except Exception as e:  # noqa: BLE001
                 logger.warning(f"Could not refresh stream URL, using original URL: {e}")
-                stream_url = track["url"]
+                stream_url = track.get("url")
+
+            if not stream_url:
+                raise ValueError("Could not extract playable stream URL.")
 
             source = discord.FFmpegPCMAudio(
                 stream_url, **self.bot.music_service.ffmpeg_options
@@ -216,6 +246,63 @@ class MusicCog(commands.Cog):
             await interaction.followup.send(embed=embed)
             return
 
+        manager = self.bot.get_manager(interaction.guild_id)
+        manager.voice_client = voice_client
+
+        # Handle YouTube playlist extraction
+        if info.get("is_playlist"):
+            tracks = []
+            for entry in info.get("entries", []):
+                tracks.append(
+                    {
+                        "title": entry.get("title", "No Title"),
+                        "url": entry.get("url"),
+                        "webpage_url": entry.get("webpage_url", query),
+                        "duration": entry.get("duration", 0),
+                        "thumbnail": entry.get("thumbnail"),
+                        "uploader": entry.get("uploader", "Unknown"),
+                        "requester": interaction.user.display_name,
+                    }
+                )
+
+            started = await manager.add_tracks(tracks, interaction.channel)
+            total_duration = sum(t["duration"] for t in tracks)
+
+            embed = discord.Embed(
+                title="📑 Added Playlist to Queue",
+                description=f"**[{info['title']}]({info['webpage_url']})**",
+                color=0x5865F2,
+            )
+            if info.get("thumbnail"):
+                embed.set_thumbnail(url=info["thumbnail"])
+
+            embed.add_field(
+                name="🔢 Tracks Added",
+                value=f"{len(tracks)} tracks",
+                inline=True,
+            )
+            if total_duration > 0:
+                embed.add_field(
+                    name="⏱️ Total Duration",
+                    value=format_duration(total_duration),
+                    inline=True,
+                )
+            embed.add_field(
+                name="👤 Channel",
+                value=info.get("uploader", "Unknown"),
+                inline=True,
+            )
+            status_text = (
+                "Playback started!"
+                if started
+                else f"Queued at position #{len(manager.queue) - len(tracks) + 1}"
+            )
+            embed.set_footer(
+                text=f"Requested by {interaction.user.display_name} • {status_text}"
+            )
+            await interaction.followup.send(embed=embed)
+            return
+
         track = {
             "title": info.get("title", "No Title"),
             "url": info.get("url"),
@@ -225,9 +312,6 @@ class MusicCog(commands.Cog):
             "uploader": info.get("uploader", "Unknown"),
             "requester": interaction.user.display_name,
         }
-
-        manager = self.bot.get_manager(interaction.guild_id)
-        manager.voice_client = voice_client
 
         started = await manager.add_track(track, interaction.channel)
 

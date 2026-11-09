@@ -51,13 +51,13 @@ class MusicSkill(BaseSkill):
         return [
             types.FunctionDeclaration(
                 name="play_music",
-                description="Play a song from YouTube based on a link or search query. The user must be in a voice channel.",
+                description="Play a song or playlist from YouTube based on a link (including public playlists) or search query. The user must be in a voice channel.",
                 parameters={
                     "type": "OBJECT",
                     "properties": {
                         "query": {
                             "type": "STRING",
-                            "description": "The song title, artist, or YouTube link to play (e.g. 'We Are of the Future')",
+                            "description": "The song title, artist, YouTube video link, or YouTube playlist link to play (e.g. 'We Are of the Future' or 'https://www.youtube.com/watch?v=...&list=...')",
                         }
                     },
                     "required": ["query"],
@@ -163,6 +163,68 @@ class MusicSkill(BaseSkill):
                     message=f"❌ No results found or an error occurred: {e}",
                 )
 
+            manager.voice_client = voice_client
+
+            # Handle YouTube playlist extraction
+            if info.get("is_playlist"):
+                tracks = []
+                for entry in info.get("entries", []):
+                    tracks.append(
+                        {
+                            "title": entry.get("title", "No Title"),
+                            "url": entry.get("url"),
+                            "webpage_url": entry.get("webpage_url", query),
+                            "duration": entry.get("duration", 0),
+                            "thumbnail": entry.get("thumbnail"),
+                            "uploader": entry.get("uploader", "Unknown"),
+                            "requester": member.display_name,
+                        }
+                    )
+
+                started = await manager.add_tracks(tracks, interaction.channel)
+                from app.presentation.discord_bot import format_duration
+
+                total_duration = sum(t["duration"] for t in tracks)
+
+                embed = discord.Embed(
+                    title="📑 Added Playlist to Queue",
+                    description=f"**[{info['title']}]({info['webpage_url']})**",
+                    color=0x5865F2,
+                )
+                if info.get("thumbnail"):
+                    embed.set_thumbnail(url=info["thumbnail"])
+
+                embed.add_field(
+                    name="🔢 Tracks Added",
+                    value=f"{len(tracks)} tracks",
+                    inline=True,
+                )
+                if total_duration > 0:
+                    embed.add_field(
+                        name="⏱️ Total Duration",
+                        value=format_duration(total_duration),
+                        inline=True,
+                    )
+                embed.add_field(
+                    name="👤 Channel",
+                    value=info.get("uploader", "Unknown"),
+                    inline=True,
+                )
+                status_text = (
+                    "Playback started!"
+                    if started
+                    else f"Queued at position #{len(manager.queue) - len(tracks) + 1}"
+                )
+                embed.set_footer(
+                    text=f"Requested by {member.display_name} • {status_text}"
+                )
+
+                return SkillResult(
+                    success=True,
+                    message=f"📑 Added playlist **[{info['title']}]({info['webpage_url']})** with {len(tracks)} tracks to queue.",
+                    embed=embed,
+                )
+
             track = {
                 "title": info.get("title", "No Title"),
                 "url": info.get("url"),
@@ -173,7 +235,6 @@ class MusicSkill(BaseSkill):
                 "requester": member.display_name,
             }
 
-            manager.voice_client = voice_client
             started = await manager.add_track(track, interaction.channel)
 
             if started:
